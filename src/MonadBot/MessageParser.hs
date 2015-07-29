@@ -17,7 +17,8 @@ import MonadBot.Message
 
 -- | This should probably be somewhere else, module-wise.
 decode :: T.Text -> Either String Message
-decode = eitherResult . parse messageP
+-- decode = eitherResult . parse messageP
+decode = parseOnly (messageP <* endOfInput)
 
 -- | Encodes a message into Text to send down the wire.
 encode :: Message -> T.Text
@@ -48,8 +49,10 @@ testMessages =
      (map T.init . T.lines) <$> TIO.readFile "irc.out"
 
 -- | Test parser and prints to stdout cleanly
-testParser =
-    mapM (putStrLn . (++ "\n") . show . parseOnly messageP)
+testParser :: IO ()
+testParser = do
+    m <- testMessages
+    mapM_ (putStrLn . (++ "\n") . show . parseOnly messageP) m
 
 {- | Concatenation combinator
 (<+>) :: Parser Text -> Parser Text -> Parser Text
@@ -92,7 +95,7 @@ serverPrefixP =
 -- | Parses nick prefix
 userPrefixP :: Parser Prefix
 userPrefixP = do
-    nick' <- takeWhile (`notElem` " !")
+    nick' <- takeWhile (`notElem` (" !" :: String))
     char '!'
     user' <- optional $ takeTill (== '@')
     char '@'
