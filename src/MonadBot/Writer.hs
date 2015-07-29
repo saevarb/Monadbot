@@ -1,5 +1,5 @@
 module MonadBot.Writer
-    ( Writer 
+    ( Writer
     , makeWriter
     ) where
 
@@ -15,5 +15,3 @@ type Writer = Message -> IO ()
 makeWriter :: TQueue Message -> Writer
 makeWriter q m =
     atomically $ writeTQueue q m
-
-

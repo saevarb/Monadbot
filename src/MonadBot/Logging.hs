@@ -10,11 +10,10 @@ import Control.Monad
 type Logger = Text -> IO ()
 
 makeLogger :: TQueue Text -> Logger
-makeLogger q t = 
+makeLogger q t =
     atomically $ writeTQueue q t
 
 logWorker :: TQueue Text -> IO ()
 logWorker q = forever $ do
-    msg <- atomically $ readTQueue q 
+    msg <- atomically $ readTQueue q
     TIO.putStrLn msg
-

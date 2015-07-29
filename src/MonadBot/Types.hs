@@ -13,15 +13,15 @@ import           MonadBot.Config
 import           MonadBot.Logging
 import           MonadBot.Writer
 
--- |Monad for irc computations.
+-- | Monad for irc computations.
 newtype Irc a
     = Irc
     { runIrc :: ReaderT Environment IO a
     } deriving
-        ( Monad, MonadReader Environment
+        ( Applicative, Monad, MonadReader Environment
         , MonadIO, Functor)
 
--- | The Irc Environment. The parts of the environment that are modifiable 
+-- | The Irc Environment. The parts of the environment that are modifiable
 -- are stored in TMVars. One of these is created for every server
 -- connection.
 data Environment

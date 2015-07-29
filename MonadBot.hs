@@ -49,6 +49,6 @@ runBot cfg = do
 
     forM_ (servers cfg) $ \s -> do
         let env = makeEnv cfg s logger writer
-            cs  = clientSettings (serverPort s) u
             u   = TE.encodeUtf8 $ serverAddress s
+            cs  = clientSettings (serverPort s) u
         runTCPClient cs $ botApp env
