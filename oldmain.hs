@@ -17,7 +17,7 @@ testConfig =
 
 testServer :: ServerInfo
 testServer
-    = ServerInfo 
+    = ServerInfo
     { serverPort     = 6667
     , serverAddress  = "wulfware.uk.tddirc.net"
     , serverPass     = Nothing

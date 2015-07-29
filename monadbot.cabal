@@ -21,6 +21,6 @@ executable monadbot
   -- other-modules:
   -- other-extensions:    GeneralizedNewtypeDeriving, RecordWildCards, OverloadedStrings
   -- build-depends:       base >=4.8 && <4.9, stm >=2.4 && <2.5, mtl >=2.2 && <2.3, text >=1.2 && <1.3, containers >=0.5 && <0.6, async >=2.0 && <2.1
-  build-depends:       base, attoparsec, text
+  build-depends:       base, attoparsec, text, conduit-combinators, conduit-extra
   hs-source-dirs:      src
   default-language:    Haskell2010
