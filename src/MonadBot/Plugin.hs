@@ -1,12 +1,17 @@
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE ExistentialQuantification #-}
 module MonadBot.Plugin
     where
 
-import qualified Data.Text as T
+import           Control.Applicative
+import           Control.Monad.Reader
+import           Control.Monad.State
 import           Data.Text (Text)
+import qualified Data.Text as T
 
-import MonadBot
-import MonadBot.Message
-import MonadBot.Types
+import           MonadBot.Message
+import           MonadBot.Types
 
 {- There are two types of 'plugins'.
 -- 1. Persistent plugins. These plugins are launched in separate threads at
@@ -28,21 +33,62 @@ import MonadBot.Types
 --}
 
 data Subscription
-    = BangCommand Text
-    | IrcMessage  Text
-    deriving (Show, Read, Eq)
 
-data Plugin
-    = PersistentPlugin
-    { subscription :: [Subscription]
-    -- TODO: Add comm channel
-    , plugin       :: Irc ()
-    , name         :: Text
-    }
-    | SandboxPlugin
-    { constructor :: Irc ()
-    , destructor  :: Irc ()
-    , plugins     :: [(Subscription, Message -> Irc ())]
-    , name        :: Text
+data PluginState = PluginState
+    { message :: Message
+    , handler :: Handler
     }
 
+-- | Monad for plugins.
+newtype PluginM m a
+    = PluginM
+    { unPlugin :: ReaderT Environment m a
+    } deriving
+        ( Alternative, Applicative, Monad, MonadReader Environment
+        , MonadIO, Functor)
+
+type Plugin = PluginM (ReaderT PluginState IO)
+type PersistentPlugin a = PluginM (StateT a IO)
+
+type SimpleHandler = () -> Plugin ()
+
+instance MonadTrans PluginM where
+    lift = PluginM . lift
+
+data Handler
+   = forall a. Handler
+   { plugName :: Text
+   , handlers :: [a -> Plugin ()]
+   , initialize :: Irc a
+   }
+
+mkSimplePlugin :: Text -> [SimpleHandler] -> Handler
+mkSimplePlugin name handlers =
+    Handler name handlers (return ())
+
+getMessage :: Plugin Message
+getMessage = lift $ asks message
+
+getPrefix :: Plugin (Maybe Prefix)
+getPrefix = prefix `fmap` getMessage
+
+getParams :: Plugin [Text]
+getParams = params `fmap` getMessage
+
+getCommand :: Plugin Text
+getCommand = command `fmap` getMessage
+
+getHandler :: Plugin Handler
+getHandler = lift $ asks handler
+
+handles :: Text -> Plugin () -> Plugin ()
+handles c f = do
+    cmd <- getCommand
+    when (cmd == c) f
+
+handleBang :: Text -> Plugin () -> Plugin ()
+handleBang bang f =
+    handles "PRIVMSG" $ do
+        p <- getParams
+        guard (not $ null p)
+        when (head p == bang) f

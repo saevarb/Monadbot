@@ -7,6 +7,7 @@ import           MonadBot.MessageParser
 import           MonadBot.Logging
 import           MonadBot.Config
 import           MonadBot.Writer
+import MonadBot.Plugin
 
 import           Control.Monad
 import           Data.Maybe
@@ -69,7 +70,6 @@ ppMessage msg =
       Nothing ->
           T.pack $ printf "%s %s" (T.unpack $ command msg) (T.unpack . T.unwords $ params msg)
 
--- handleMessage :: Consumer Text IO ()
 handleMessage :: Consumer Text (ReaderT Environment IO) ()
 handleMessage =
     awaitForever $ \line -> do
