@@ -1,6 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-import           Control.Monad.Reader
-import           Control.Monad.STM
 import           MonadBot.Types
 import           MonadBot.Message
 import           MonadBot.MessageParser
@@ -8,14 +7,18 @@ import           MonadBot.Logging
 import           MonadBot.Config
 import           MonadBot.Writer
 import MonadBot.Plugin
+import MonadBot.Plugins
 
-import           Control.Monad
 import           Data.Maybe
+import           Control.Monad
+import           Control.Monad.Reader
+import           Control.Monad.STM
 import           Control.Concurrent (forkIO)
 import           Control.Concurrent.STM.TQueue
 import           Data.Text
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+
 import           Conduit
 import           Data.Conduit.Network
 import Text.Printf
@@ -109,13 +112,16 @@ runBot cfg = do
     putStrLn "Starting logger.."
     forkIO $ logWorker logQueue
 
+    initPlugins <- forM plugins $ \p ->
+
     forM_ (servers cfg) $ \srv -> do
         printf "Connecting to %s..\n" (T.unpack $ serverAddress srv)
+        -- New write queue for each server
         writerQueue <- newTQueueIO
         let writer = makeWriter writerQueue
             env    = makeEnv cfg srv logger writer
             cs     = clientSettings (serverPort srv) (TE.encodeUtf8 $ serverAddress srv)
-        -- This should be forkIO'd
+        -- TODO: This should be forkIO'd
         runTCPClient cs $ botApp writerQueue env
 
 main :: IO ()

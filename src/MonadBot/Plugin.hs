@@ -1,5 +1,5 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE ExistentialQuantification #-}
 module MonadBot.Plugin
     where
@@ -13,80 +13,63 @@ import qualified Data.Text as T
 import           MonadBot.Message
 import           MonadBot.Types
 
-{- There are two types of 'plugins'.
--- 1. Persistent plugins. These plugins are launched in separate threads at
--- startup and subscribe to certain IRC messages(like PRIVMSG) and/or bang
--- commands, using channels to
--- receive these messages. They do not need initilization or
--- de-initialization as they are self-contained entities. If their threads
--- terminate unexpectedly(exceptions, etc) they will be restarted
--- automatically.
--- These kind of plugins are great for data-gathering stuff.
---
--- 2. One-time bang command handlers. These plugins run as soon as the bang
--- command they subscribe to is happens. They are run once in a sandboxed
--- thread(e.g. they will have a maximum lifetime) and they will be killed
--- once that time is over. They will have initialization and
--- deinitialization functions that will be run once upon startup and exit
--- respectively(for stuff like creating/deleting files and such.)
---
---}
-
 data Subscription
+
+type PluginM = IrcT (ReaderT PluginState IO)
+type PersistentPluginM a = IrcT (StateT a IO)
+
+type SimpleHandler = () -> PluginM ()
 
 data PluginState = PluginState
     { message :: Message
-    , handler :: Handler
+    , handler :: Plugin
     }
 
--- | Monad for plugins.
-newtype PluginM m a
-    = PluginM
-    { unPlugin :: ReaderT Environment m a
-    } deriving
-        ( Alternative, Applicative, Monad, MonadReader Environment
-        , MonadIO, Functor)
-
-type Plugin = PluginM (ReaderT PluginState IO)
-type PersistentPlugin a = PluginM (StateT a IO)
-
-type SimpleHandler = () -> Plugin ()
-
-instance MonadTrans PluginM where
-    lift = PluginM . lift
-
-data Handler
-   = forall a. Handler
+data Plugin
+   = forall a. Plugin
    { plugName :: Text
-   , handlers :: [a -> Plugin ()]
+   , handlers :: [a -> PluginM ()]
    , initialize :: Irc a
    }
+   | forall a. PersistentPlugin
+   { construct :: Irc a
+   , destruct  :: a -> Irc ()
+   , daemons :: [PersistentPluginM a ()]
+   }
 
-mkSimplePlugin :: Text -> [SimpleHandler] -> Handler
+data InitializedPlugin
+    = InitializedPlugin Text [PluginM ()]
+
+initalizePlugin :: Plugin -> Environment -> IO InitializedPlugin
+initalizePlugin (Plugin {..}) env = do
+    x <- runIrc initialize env
+    return $ InitializedPlugin plugName (map ($ x) handlers)
+
+mkSimplePlugin :: Text -> [SimpleHandler] -> Plugin
 mkSimplePlugin name handlers =
-    Handler name handlers (return ())
+    Plugin name handlers (return ())
 
-getMessage :: Plugin Message
+getMessage :: PluginM Message
 getMessage = lift $ asks message
 
-getPrefix :: Plugin (Maybe Prefix)
+getPrefix :: PluginM (Maybe Prefix)
 getPrefix = prefix `fmap` getMessage
 
-getParams :: Plugin [Text]
+getParams :: PluginM [Text]
 getParams = params `fmap` getMessage
 
-getCommand :: Plugin Text
+getCommand :: PluginM Text
 getCommand = command `fmap` getMessage
 
-getHandler :: Plugin Handler
-getHandler = lift $ asks handler
+getPlugin :: PluginM Plugin
+getPlugin = lift $ asks handler
 
-handles :: Text -> Plugin () -> Plugin ()
+handles :: Text -> PluginM () -> PluginM ()
 handles c f = do
     cmd <- getCommand
     when (cmd == c) f
 
-handleBang :: Text -> Plugin () -> Plugin ()
+handleBang :: Text -> PluginM () -> PluginM ()
 handleBang bang f =
     handles "PRIVMSG" $ do
         p <- getParams
