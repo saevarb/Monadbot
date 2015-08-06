@@ -11,6 +11,7 @@ import MonadBot.Plugins
 
 import           Data.Maybe
 import           Control.Monad
+import           Control.Monad.Morph
 import           Control.Monad.Reader
 import           Control.Monad.STM
 import           Control.Concurrent (forkIO)
@@ -42,22 +43,6 @@ testServer
     , nickServ       = Nothing
     }
 
-makeEnv :: IrcConfig -> ServerInfo -> Logger -> Writer -> Environment
-makeEnv cfg serv lgr w
-    = Environment
-    { myNick = nick cfg
-    , server = serv
-    , logger = lgr
-    , writer = w
-    }
-
-
-mkAuthMessage :: Environment -> [Message]
-mkAuthMessage env = catMaybes
-    [ (serverPass . server $ env) >>= \p -> return $ Message Nothing "PASS" [p]
-    , return $ Message Nothing "NICK" [myNick env]
-    , return $ Message Nothing "USER" [myNick env, "0", "*", ":monadbot"]
-    ]
 
 settings :: ServerInfo -> ClientSettings
 settings si =
@@ -73,56 +58,88 @@ ppMessage msg =
       Nothing ->
           T.pack $ printf "%s %s" (T.unpack $ command msg) (T.unpack . T.unwords $ params msg)
 
-handleMessage :: Consumer Text (ReaderT Environment IO) ()
+handleMessage :: Consumer Text (Sink () ServerM) ()
 handleMessage =
     awaitForever $ \line -> do
         let msg = decode line
         case msg of
-          Left e -> liftIO $ putStrLn e
+          Left e ->
+              liftIO $ putStrLn e
           Right m' -> do
-              lgr <- asks logger
-              liftIO . lgr $ ppMessage m'
+              lgr <- (lift . lift $  logger `fmap` getGlobalEnv)
+              liftIO . atomically $ writeTQueue lgr $ ppMessage m'
+              return ()
 
-botApp :: TQueue Message -> Environment -> AppData -> IO ()
-botApp wq env app = do
-    -- Start writer thread
-    forkIO $ do
-        msg <- atomically $ readTQueue wq
-        yield (encode msg) =$= encodeUtf8C $$ appSink app
+botApp :: ServerEnvironment -> AppData -> IO ()
+botApp srvEnv app =
+    runConduit . runReaderC srvEnv $ hoist unIrc $ do
+        -- Start writer thread
+        wq <- asks writer
+        liftIO . forkIO . forever $ do
+            msg <- atomically $ readTQueue wq
+            yield (encode msg) =$= encodeUtf8C $$ appSink app
 
-    -- Send authentication messages
-    yieldMany (mkAuthMessage env) =$= mapC encode =$= encodeUtf8C $$ appSink app
+        -- Send authentication messages
+        lift authenticate
 
-    -- Decode bytestrings to Text
-    appSource app =$= decodeUtf8C
-        -- Chunk into lines
-        =$= linesUnboundedC
-        -- Remove trailing \r
-        =$= mapC T.init
-        -- Handle messages
-        $$ runReaderC env handleMessage
+        env <- lift getServerEnv
+        -- Decode bytestrings to Text
+        appSource app =$= decodeUtf8C
+            -- Chunk into lines
+            =$= linesUnboundedC
+            -- Remove trailing \r
+            =$= mapC T.init
+            -- Handle messages
+            $$ handleMessage
+  where
+    -- authenticate :: Producer ServerM ()
+    authenticate =
+        mkAuthMessage
+        =$= mapC encode
+        =$= encodeUtf8C
+        $$ appSink app
+
+    mkAuthMessage :: Producer ServerM Message
+    mkAuthMessage = do
+        sp <- (serverPass . server) `fmap` lift getServerEnv
+        n  <- myNick `fmap` lift getGlobalEnv
+        yieldMany $ catMaybes
+            [ maybe Nothing (\p -> Just $ Message Nothing "PASS" [p]) sp
+            , return $ Message Nothing "NICK" [n]
+            , return $ Message Nothing "USER" [n, "0", "*", ":monadbot"]
+            ]
+
+makeGlobalEnv :: IrcConfig -> IO GlobalEnvironment
+makeGlobalEnv cfg = do
+    -- Create log queue which is shared by all servers
+    lgr <- newTQueueIO
+    return $ GlobalEnvironment (nick cfg) (servers cfg) lgr -- undefined undefined
+
+makeServerEnv :: GlobalEnvironment -> ServerInfo -> IO ServerEnvironment
+makeServerEnv gEnv srv = do
+    -- Writer specific to server
+    w <- newTQueueIO
+    return $ ServerEnvironment gEnv srv w
+
+
+connectToServer :: ServerEnvironment -> IO ()
+connectToServer srvEnv = do
+        let cs = settings (server srvEnv)
+        -- TODO: This should be forkIO'd
+        runTCPClient cs (botApp srvEnv)
 
 runBot :: IrcConfig -> IO ()
 runBot cfg = do
-    -- Create log queue which is shared by all servers
-    logQueue    <- newTQueueIO
-    -- Make logger
-    let logger = makeLogger logQueue
     -- Start logworker
+    gEnv <- makeGlobalEnv cfg
     putStrLn "Starting logger.."
-    forkIO $ logWorker logQueue
+    forkIO $ logWorker (logger gEnv)
 
-    initPlugins <- forM plugins $ \p ->
-
+    -- initPlugins <- forM plugins $ \p ->
     forM_ (servers cfg) $ \srv -> do
         printf "Connecting to %s..\n" (T.unpack $ serverAddress srv)
-        -- New write queue for each server
-        writerQueue <- newTQueueIO
-        let writer = makeWriter writerQueue
-            env    = makeEnv cfg srv logger writer
-            cs     = clientSettings (serverPort srv) (TE.encodeUtf8 $ serverAddress srv)
-        -- TODO: This should be forkIO'd
-        runTCPClient cs $ botApp writerQueue env
+        srvEnv <- makeServerEnv gEnv srv
+        connectToServer srvEnv
 
 main :: IO ()
 main = runBot testConfig

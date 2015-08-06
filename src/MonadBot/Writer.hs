@@ -1,6 +1,5 @@
 module MonadBot.Writer
     ( Writer
-    , makeWriter
     ) where
 
 import Data.Text (Text)

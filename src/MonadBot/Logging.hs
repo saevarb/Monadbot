@@ -7,11 +7,7 @@ import Control.Concurrent.STM
 import Control.Monad
 
 
-type Logger = Text -> IO ()
-
-makeLogger :: TQueue Text -> Logger
-makeLogger q t =
-    atomically $ writeTQueue q t
+type Logger = TQueue Text
 
 logWorker :: TQueue Text -> IO ()
 logWorker q = forever $ do
