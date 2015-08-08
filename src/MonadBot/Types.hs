@@ -90,7 +90,7 @@ data PluginEnvironment
     = PluginEnvironment
     { serverEnv :: ServerEnvironment
     , message   :: Message
-    , handler   :: Plugin
+    , handler   :: InitializedPlugin
     }
 
 -- | Monad for irc computations.
@@ -168,8 +168,8 @@ type Writer = TQueue Message
 ------------------------------------------------------------------
 -- Plugin stuff
 ------------------------------------------------------------------
-initalizePlugin :: Plugin -> GlobalEnvironment -> IO InitializedPlugin
-initalizePlugin (Plugin {..}) env = do
+initalizePlugin :: GlobalEnvironment -> Plugin -> IO InitializedPlugin
+initalizePlugin env (Plugin {..}) = do
     x <- runIrc initialize env
     return $ InitializedPlugin plugName (map ($ x) handlers)
 
@@ -189,7 +189,7 @@ getParams = params `fmap` getMessage
 getCommand :: PluginM Text
 getCommand = command `fmap` getMessage
 
-getPlugin :: PluginM Plugin
+getPlugin :: PluginM InitializedPlugin
 getPlugin = asks handler
 
 handles :: Text -> PluginM () -> PluginM ()
@@ -202,4 +202,8 @@ handleBang bang f =
     handles "PRIVMSG" $ do
         p <- getParams
         guard (not $ null p)
-        when (head p == bang) f
+        let (_:first:_) = p
+        when (T.tail first == bang) f
+
+getServer :: PluginM ServerInfo
+getServer = server `fmap` getServerEnv

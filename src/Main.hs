@@ -1,13 +1,14 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
+import           Control.Concurrent hiding (yield)
 import           MonadBot.Types
 import           MonadBot.Message
 import           MonadBot.MessageParser
 import           MonadBot.Logging
 import           MonadBot.Config
 import           MonadBot.Writer
-import MonadBot.Plugin
-import MonadBot.Plugins
+import           MonadBot.Plugin
+import           MonadBot.Plugins
 
 import           Data.Maybe
 import           Control.Monad
@@ -22,7 +23,7 @@ import qualified Data.Text.Encoding as TE
 
 import           Conduit
 import           Data.Conduit.Network
-import Text.Printf
+import           Text.Printf
 
 testConfig :: IrcConfig
 testConfig =
@@ -30,11 +31,11 @@ testConfig =
     { nick    = "monadbot"
     , user    = "bar"
     , real    = "baz"
-    , servers = [testServer]
+    , servers = [nixers, darchoods]
     }
 
-testServer :: ServerInfo
-testServer
+nixers :: ServerInfo
+nixers
     = ServerInfo
     { serverPort     = 6667
     , serverAddress  = "irc.nixers.net"
@@ -43,6 +44,15 @@ testServer
     , nickServ       = Nothing
     }
 
+darchoods :: ServerInfo
+darchoods
+    = ServerInfo
+    { serverPort     = 6697
+    , serverAddress  = "irc.darchoods.net"
+    , serverPass     = Nothing
+    , serverChannels = ["#420"]
+    , nickServ       = Nothing
+    }
 
 settings :: ServerInfo -> ClientSettings
 settings si =
@@ -58,17 +68,23 @@ ppMessage msg =
       Nothing ->
           T.pack $ printf "%s %s" (T.unpack $ command msg) (T.unpack . T.unwords $ params msg)
 
-handleMessage :: Consumer Text (Sink () ServerM) ()
-handleMessage =
+handleMessage :: [InitializedPlugin] -> Consumer Text (Sink () ServerM) ()
+handleMessage plugins =
     awaitForever $ \line -> do
         let msg = decode line
         case msg of
           Left e ->
               liftIO $ putStrLn e
           Right m' -> do
-              lgr <- (lift . lift $  logger `fmap` getGlobalEnv)
-              liftIO . atomically $ writeTQueue lgr $ ppMessage m'
-              return ()
+              lift . lift $ logMsg (ppMessage m')
+              -- lgr <- lift . lift $  logger `fmap` getGlobalEnv
+              -- liftIO . atomically $ writeTQueue lgr $ ppMessage m'
+              forM_ plugins $ \p@(InitializedPlugin n hs) -> do
+                  sEnv <- lift . lift $ getServerEnv
+                  let pEnv = PluginEnvironment sEnv m' p
+                  forM_ hs $ \handler -> liftIO $ runReaderT (unIrc handler) pEnv
+                  return ()
+
 
 botApp :: ServerEnvironment -> AppData -> IO ()
 botApp srvEnv app =
@@ -79,10 +95,12 @@ botApp srvEnv app =
             msg <- atomically $ readTQueue wq
             yield (encode msg) =$= encodeUtf8C $$ appSink app
 
+        gEnv <- lift getGlobalEnv
+        initPlugins <- liftIO $ mapM (initalizePlugin gEnv) allPlugins
+
         -- Send authentication messages
         lift authenticate
 
-        env <- lift getServerEnv
         -- Decode bytestrings to Text
         appSource app =$= decodeUtf8C
             -- Chunk into lines
@@ -90,20 +108,22 @@ botApp srvEnv app =
             -- Remove trailing \r
             =$= mapC T.init
             -- Handle messages
-            $$ handleMessage
+            $$ handleMessage initPlugins
   where
-    -- authenticate :: Producer ServerM ()
-    authenticate =
-        mkAuthMessage
-        =$= mapC encode
-        =$= encodeUtf8C
-        $$ appSink app
+    authenticate :: ServerM ()
+    authenticate = do
+        authMsgs <- mkAuthMessage
+        yieldMany authMsgs
+            =$= mapC encode
+            =$= encodeUtf8C
+            $$ appSink app
 
-    mkAuthMessage :: Producer ServerM Message
+    -- mkAuthMessage :: Producer ServerM Message
+    mkAuthMessage :: ServerM [Message]
     mkAuthMessage = do
-        sp <- (serverPass . server) `fmap` lift getServerEnv
-        n  <- myNick `fmap` lift getGlobalEnv
-        yieldMany $ catMaybes
+        sp <- (serverPass . server) `fmap` getServerEnv
+        n  <- myNick `fmap` getGlobalEnv
+        return $ catMaybes
             [ maybe Nothing (\p -> Just $ Message Nothing "PASS" [p]) sp
             , return $ Message Nothing "NICK" [n]
             , return $ Message Nothing "USER" [n, "0", "*", ":monadbot"]
@@ -121,12 +141,11 @@ makeServerEnv gEnv srv = do
     w <- newTQueueIO
     return $ ServerEnvironment gEnv srv w
 
-
 connectToServer :: ServerEnvironment -> IO ()
 connectToServer srvEnv = do
         let cs = settings (server srvEnv)
         -- TODO: This should be forkIO'd
-        runTCPClient cs (botApp srvEnv)
+        void . forkIO $ runTCPClient cs (botApp srvEnv)
 
 runBot :: IrcConfig -> IO ()
 runBot cfg = do
@@ -135,11 +154,11 @@ runBot cfg = do
     putStrLn "Starting logger.."
     forkIO $ logWorker (logger gEnv)
 
-    -- initPlugins <- forM plugins $ \p ->
     forM_ (servers cfg) $ \srv -> do
         printf "Connecting to %s..\n" (T.unpack $ serverAddress srv)
         srvEnv <- makeServerEnv gEnv srv
         connectToServer srvEnv
+    forever $ threadDelay 10000
 
 main :: IO ()
 main = runBot testConfig
