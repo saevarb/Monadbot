@@ -126,7 +126,7 @@ botApp srvEnv app =
         return $ catMaybes
             [ maybe Nothing (\p -> Just $ Message Nothing "PASS" [p]) sp
             , return $ Message Nothing "NICK" [n]
-            , return $ Message Nothing "USER" [n, "0", "*", ":monadbot"]
+            , return $ Message Nothing "USER" [n <> " 0 *", "monadbot"]
             ]
 
 makeGlobalEnv :: IrcConfig -> IO GlobalEnvironment
