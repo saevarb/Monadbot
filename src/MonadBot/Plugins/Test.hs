@@ -23,11 +23,12 @@ nigger _ = handleBang "!nigger" $ do
 serverCmd :: SimpleHandler
 serverCmd _ =
     handleBang "!servers" $ do
-        myServers <- myServers <$> getGlobalEnv
+        srvs <- myServers <$> getGlobalEnv
         (chan:_) <- getParams
-        sendCommand "PRIVMSG" ["I am on the following servers and channels:"]
-        forM_ myServers $ \server ->
-            sendCommand "PRIVMSG" [chan, serverAddress server <> ": " <> T.intercalate ", " (serverChannels server)]
+        sendCommand "PRIVMSG" [chan , "I am on the following servers and channels:"]
+        forM_ srvs $ \srv ->
+            sendCommand "PRIVMSG" [chan, serverAddress srv <> ": " <> T.intercalate ", " (serverChannels srv)]
 
 
+plugin :: Plugin
 plugin = mkSimplePlugin "Test handler" [nigger, serverCmd]

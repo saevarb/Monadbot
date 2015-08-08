@@ -18,7 +18,7 @@ cabal-version:       >=1.10
 
 executable monadbot
   main-is:             Main.hs
-  -- other-modules:
+  extensions:           OverloadedStrings
   build-depends:       async
                      , attoparsec
                      , base
@@ -30,5 +30,6 @@ executable monadbot
                      , mtl
                      , stm
                      , text
+                     , unix >= 2.7.1.0
   hs-source-dirs:      src
   default-language:    Haskell2010

@@ -1,6 +1,23 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-import           Control.Concurrent hiding (yield)
+import qualified Data.Text.IO as TIO
+import           Control.Monad
+import           Control.Monad.Morph
+import           Control.Monad.Reader
+import           Control.Monad.STM
+import           Control.Concurrent (forkIO, threadDelay, killThread, ThreadId)
+import           Control.Concurrent.STM.TQueue
+import           Data.Maybe
+import           Data.Text
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as TE
+import           System.Exit
+import           System.Posix.Signals
+
+import           Conduit
+import           Data.Conduit.Network
+import           Text.Printf
+
 import           MonadBot.Types
 import           MonadBot.Message
 import           MonadBot.MessageParser
@@ -10,20 +27,6 @@ import           MonadBot.Writer
 import           MonadBot.Plugin
 import           MonadBot.Plugins
 
-import           Data.Maybe
-import           Control.Monad
-import           Control.Monad.Morph
-import           Control.Monad.Reader
-import           Control.Monad.STM
-import           Control.Concurrent (forkIO)
-import           Control.Concurrent.STM.TQueue
-import           Data.Text
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as TE
-
-import           Conduit
-import           Data.Conduit.Network
-import           Text.Printf
 
 testConfig :: IrcConfig
 testConfig =
@@ -31,7 +34,7 @@ testConfig =
     { nick    = "monadbot"
     , user    = "bar"
     , real    = "baz"
-    , servers = [nixers, darchoods]
+    , servers = [darchoods]
     }
 
 nixers :: ServerInfo
@@ -40,6 +43,7 @@ nixers
     { serverPort     = 6667
     , serverAddress  = "irc.nixers.net"
     , serverPass     = Nothing
+    , useTLS         = False
     , serverChannels = ["#monadbot"]
     , nickServ       = Nothing
     }
@@ -47,10 +51,11 @@ nixers
 darchoods :: ServerInfo
 darchoods
     = ServerInfo
-    { serverPort     = 6697
-    , serverAddress  = "irc.darchoods.net"
+    { serverPort     = 6667
+    , serverAddress  = "127.0.0.1"
     , serverPass     = Nothing
-    , serverChannels = ["#420"]
+    , serverChannels = ["#bots"]
+    , useTLS         = False
     , nickServ       = Nothing
     }
 
@@ -77,13 +82,10 @@ handleMessage plugins =
               liftIO $ putStrLn e
           Right m' -> do
               lift . lift $ logMsg (ppMessage m')
-              -- lgr <- lift . lift $  logger `fmap` getGlobalEnv
-              -- liftIO . atomically $ writeTQueue lgr $ ppMessage m'
-              forM_ plugins $ \p@(InitializedPlugin n hs) -> do
+              forM_ plugins $ \p@(InitializedPlugin _ hs) -> do
                   sEnv <- lift . lift $ getServerEnv
                   let pEnv = PluginEnvironment sEnv m' p
-                  forM_ hs $ \handler -> liftIO $ runReaderT (unIrc handler) pEnv
-                  return ()
+                  mapM_ (runPlugin pEnv) hs -- liftIO $ runReaderT (unIrc handler) pEnv
 
 
 botApp :: ServerEnvironment -> AppData -> IO ()
@@ -94,6 +96,7 @@ botApp srvEnv app =
         liftIO . forkIO . forever $ do
             msg <- atomically $ readTQueue wq
             yield (encode msg) =$= encodeUtf8C $$ appSink app
+            threadDelay 500000
 
         gEnv <- lift getGlobalEnv
         initPlugins <- liftIO $ mapM (initalizePlugin gEnv) allPlugins
@@ -141,11 +144,11 @@ makeServerEnv gEnv srv = do
     w <- newTQueueIO
     return $ ServerEnvironment gEnv srv w
 
-connectToServer :: ServerEnvironment -> IO ()
+connectToServer :: ServerEnvironment -> IO ThreadId
 connectToServer srvEnv = do
         let cs = settings (server srvEnv)
         -- TODO: This should be forkIO'd
-        void . forkIO $ runTCPClient cs (botApp srvEnv)
+        forkIO $ runTCPClient cs (botApp srvEnv)
 
 runBot :: IrcConfig -> IO ()
 runBot cfg = do
@@ -154,11 +157,22 @@ runBot cfg = do
     putStrLn "Starting logger.."
     forkIO $ logWorker (logger gEnv)
 
-    forM_ (servers cfg) $ \srv -> do
+    threads <- forM (servers cfg) $ \srv -> do
         printf "Connecting to %s..\n" (T.unpack $ serverAddress srv)
         srvEnv <- makeServerEnv gEnv srv
         connectToServer srvEnv
-    forever $ threadDelay 10000
+
+    installHandler sigINT (sigIntHandler threads) Nothing
+
+    getChar
+    putStrLn "Killing all threads"
+    mapM_ killThread threads
+  where
+    sigIntHandler threads =
+        CatchOnce $
+            putStrLn "Killing all threads" >>
+            mapM_ killThread threads >>
+            exitSuccess
 
 main :: IO ()
 main = runBot testConfig

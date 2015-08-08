@@ -12,4 +12,5 @@ pingHandler _ = handles "PING" $ do
     logMsg "Sent pong"
     sendCommand "PONG" params
 
+plugin :: Plugin
 plugin = mkSimplePlugin "Ping handler" [pingHandler]

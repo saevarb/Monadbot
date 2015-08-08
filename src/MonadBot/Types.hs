@@ -1,21 +1,24 @@
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, RecordWildCards #-}
 {-# LANGUAGE ExistentialQuantification #-}
 module MonadBot.Types
     where
-import Conduit
-import Control.Applicative
+import qualified Data.Text.IO as TIO
+import           Conduit
+import           Control.Applicative
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad.Reader
-import Control.Monad.State
-import qualified Data.Set                 as S
-import           Data.Text                (Text)
-import qualified Data.Text                as T
+import           Control.Monad.State
+import qualified Data.Set as S
+import           Data.Text (Text)
+import qualified Data.Text as T
 
-import MonadBot.Logging
-import MonadBot.Message
-import MonadBot.MessageParser
+import           MonadBot.Logging
+import           MonadBot.Message
+import           MonadBot.MessageParser
 
 class HasServerEnv s where
     getServerEnv :: (Monad m) => IrcT s m ServerEnvironment
@@ -29,19 +32,17 @@ instance HasServerEnv ServerEnvironment where
 class HasGlobalEnv s where
     getGlobalEnv :: (Monad m) => IrcT s m GlobalEnvironment
 
-instance HasGlobalEnv GlobalEnvironment where
-    getGlobalEnv = ask
+-- instance HasGlobalEnv GlobalEnvironment where
+--     getGlobalEnv = ask
 
-instance HasGlobalEnv ServerEnvironment where
-    getGlobalEnv = asks globalEnv
+-- instance HasGlobalEnv ServerEnvironment where
+--     getGlobalEnv = asks globalEnv
 
-instance HasGlobalEnv PluginEnvironment where
-    getGlobalEnv = asks $ globalEnv . serverEnv
+-- instance HasGlobalEnv PluginEnvironment where
+--     getGlobalEnv = asks $ globalEnv . serverEnv
 
-sendCommand :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
-sendCommand c p = do
-    w <- writer `fmap` getServerEnv
-    liftIO . atomically . writeTQueue w $ Message Nothing c p
+instance (HasServerEnv a) => HasGlobalEnv a where
+    getGlobalEnv = globalEnv <$> getServerEnv
 
 -- | The bot's config.
 data IrcConfig =
@@ -59,6 +60,7 @@ data ServerInfo
     , serverAddress  :: Text
     , serverPass     :: Maybe Text
     , serverChannels :: [Text]
+    , useTLS         :: Bool
     , nickServ       :: Maybe (Text, Text)
     } deriving (Eq, Read, Show)
 
@@ -169,6 +171,7 @@ type Writer = TQueue Message
 -- Plugin stuff
 ------------------------------------------------------------------
 initalizePlugin :: GlobalEnvironment -> Plugin -> IO InitializedPlugin
+initalizePlugin _ (PersistentPlugin {..}) = error "initalizePlugin: not defined"
 initalizePlugin env (Plugin {..}) = do
     x <- runIrc initialize env
     return $ InitializedPlugin plugName (map ($ x) handlers)
@@ -197,6 +200,19 @@ handles c f = do
     cmd <- getCommand
     when (cmd == c) f
 
+handlesAny :: [Text] -> PluginM () -> PluginM ()
+handlesAny cmds f =
+    mapM_ (flip handles f) cmds
+
+handlesCTCP :: Text -> PluginM () -> PluginM ()
+handlesCTCP c f =
+    handlesAny ["PRIVMSG", "NOTICE"] $ do
+        params <- getParams
+        guard (not . null $ params)
+        let (_:cmd:_) = params
+        when ("\x01" <> c <> "\x01" == T.tail cmd) f
+
+
 handleBang :: Text -> PluginM () -> PluginM ()
 handleBang bang f =
     handles "PRIVMSG" $ do
@@ -205,5 +221,40 @@ handleBang bang f =
         let (_:first:_) = p
         when (T.tail first == bang) f
 
+onlyForServer :: Text -> PluginM () -> PluginM ()
+onlyForServer srv f = do
+    addr <- serverAddress <$> getServer
+    when (addr == srv) f
+
+onlyForChannel :: Text -> PluginM () -> PluginM ()
+onlyForChannel channel f = do
+    (chan:_) <- getParams
+    when (chan == channel) f
+
 getServer :: PluginM ServerInfo
 getServer = server `fmap` getServerEnv
+
+sendCommand :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
+sendCommand c p = do
+    w <- writer `fmap` getServerEnv
+    logMsg $ "Sending command: " <> (encode $ Message Nothing c p)
+    liftIO . atomically . writeTQueue w $ Message Nothing c p
+
+sendPrivmsg :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
+sendPrivmsg target msg = sendCommand "PRIVMSG" $ target : msg
+
+sendNotice :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
+sendNotice target msg = sendCommand "NOTICE" $ target : msg
+
+ctcpCommand :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
+ctcpCommand target = sendPrivmsg target . ctcpify
+
+ctcpReply :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
+ctcpReply target = sendNotice target . ctcpify
+
+ctcpify :: [Text] -> [Text]
+ctcpify (x:xs) = ("\x01" <> x) : init xs <> [last xs <> "\x01"]
+ctcpify [] = error "ctcpify: This shouldn't happen. Please report a bug."
+
+runPlugin :: MonadIO m => PluginEnvironment -> PluginM a -> m a
+runPlugin pEnv h =  liftIO $ runReaderT (unIrc h) pEnv

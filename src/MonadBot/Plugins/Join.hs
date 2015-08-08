@@ -9,10 +9,10 @@ import MonadBot.Types
 
 joinHandler :: SimpleHandler
 joinHandler _ = handles "376" $ do
-    server <- getServer
+    srv <- getServer
     logMsg "Joining channels"
-    forM_ (serverChannels server) $ \channel -> do
+    forM_ (serverChannels srv) $ \channel ->
         sendCommand "JOIN" [channel]
-        sendCommand "PRIVMSG" [channel, "fuck all you niggers"]
 
+plugin :: Plugin
 plugin = mkSimplePlugin "Join handler" [joinHandler]
