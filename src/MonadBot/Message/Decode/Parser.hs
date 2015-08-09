@@ -1,28 +1,29 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MonadBot.Message.Decode.Parser where
+module MonadBot.Message.Decode.Parser
+    ( messageP
+    )
+    where
 
 import Prelude hiding (takeWhile)
 import Control.Applicative
-import Data.Attoparsec.Text 
+import Data.Attoparsec.Text
 import Data.Attoparsec.Combinator
 import Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TIO
 
--- | Ugly hack to fix 
-import GHC.Exts (IsString(..))
-
 import MonadBot.Message
 
--- | Test messages from sample session
-testMessages :: IO [Text]
-testMessages = 
-     (map T.init . T.lines) <$> TIO.readFile "irc.out"
+-- -- | Test messages from sample session
+-- testMessages :: IO [Text]
+-- testMessages =
+--      (map T.init . T.lines) <$> TIO.readFile "irc.out"
 
--- | Test parser and prints to stdout cleanly
-testParser :: [Text] -> IO ()
-testParser = 
-    mapM_ (putStrLn . (++ "\n") . show . parseOnly messageP) 
+-- -- | Test parser and prints to stdout cleanly
+-- testParser :: IO ()
+-- testParser = do
+--     m <- testMessages
+--     mapM_ (putStrLn . (++ "\n") . show . parseOnly messageP) m
 
 {- | Concatenation combinator
 (<+>) :: Parser Text -> Parser Text -> Parser Text
@@ -33,19 +34,19 @@ a <+> b = liftA2 T.append a b
 a <:> b = liftA2 T.cons a b
 -}
 
-messageP :: Parser Message 
+messageP :: Parser Message
 messageP = do
     prefix'  <- optional $ char ':' *> prefixP <* space
-    command' <- commandP 
+    command' <- commandP
     space
     params'  <- paramsP
     return $ Message prefix' command' params'
 
 -- | Parses params
 paramsP :: Parser [Text]
-paramsP = do
+paramsP =
     T.words . T.dropWhile (== ':') <$> takeText
-    
+
 -- | Parses commands
 commandP :: Parser T.Text
 commandP =
@@ -54,22 +55,20 @@ commandP =
 
 -- | Parses Prefix
 prefixP :: Parser Prefix
-prefixP = do
+prefixP =
     userPrefixP <|> serverPrefixP
 
 -- | Parses server prefix
 serverPrefixP :: Parser Prefix
-serverPrefixP = do
+serverPrefixP =
     ServerPrefix <$> takeTill (== ' ')
 
 -- | Parses nick prefix
 userPrefixP :: Parser Prefix
 userPrefixP = do
-    nick' <- takeWhile (`notElem` " !")
+    nick' <- takeWhile (`notElem` (" !" :: String))
     char '!'
     user' <- optional $ takeTill (== '@')
     char '@'
     host' <- optional $ takeTill (== ' ')
     return $ UserPrefix nick' user' host'
-
-

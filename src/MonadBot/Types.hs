@@ -18,7 +18,8 @@ import qualified Data.Text as T
 
 import           MonadBot.Logging
 import           MonadBot.Message
-import           MonadBot.MessageParser
+import           MonadBot.Message.Decode
+import           MonadBot.Message.Encode
 
 class HasServerEnv s where
     getServerEnv :: (Monad m) => IrcT s m ServerEnvironment
@@ -31,15 +32,6 @@ instance HasServerEnv ServerEnvironment where
 
 class HasGlobalEnv s where
     getGlobalEnv :: (Monad m) => IrcT s m GlobalEnvironment
-
--- instance HasGlobalEnv GlobalEnvironment where
---     getGlobalEnv = ask
-
--- instance HasGlobalEnv ServerEnvironment where
---     getGlobalEnv = asks globalEnv
-
--- instance HasGlobalEnv PluginEnvironment where
---     getGlobalEnv = asks $ globalEnv . serverEnv
 
 instance (HasServerEnv a) => HasGlobalEnv a where
     getGlobalEnv = globalEnv <$> getServerEnv

@@ -20,7 +20,8 @@ import           Text.Printf
 
 import           MonadBot.Types
 import           MonadBot.Message
-import           MonadBot.MessageParser
+import           MonadBot.Message.Encode
+import           MonadBot.Message.Decode
 import           MonadBot.Logging
 import           MonadBot.Config
 import           MonadBot.Writer
