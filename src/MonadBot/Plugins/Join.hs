@@ -4,7 +4,7 @@ module MonadBot.Plugins.Join
     ) where
 
 import Control.Monad
-import MonadBot.Plugin
+
 import MonadBot.Types
 
 joinHandler :: SimpleHandler

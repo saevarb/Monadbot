@@ -5,7 +5,7 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module MonadBot.Types
     where
-import qualified Data.Text.IO as TIO
+
 import           Conduit
 import           Control.Applicative
 import           Control.Concurrent.Async
@@ -18,7 +18,7 @@ import qualified Data.Text as T
 
 import           MonadBot.Logging
 import           MonadBot.Message
-import           MonadBot.Message.Decode
+
 import           MonadBot.Message.Encode
 
 class HasServerEnv s where
@@ -43,6 +43,7 @@ data IrcConfig =
     , user    :: Text
     , real    :: Text
     , servers :: [ServerInfo]
+    , timeout :: Int
     } deriving (Eq, Read, Show)
 
 -- | Contains information needed to connect to a server.
@@ -66,7 +67,7 @@ data GlobalEnvironment
     , myServers   :: [ServerInfo]
     , logger      :: Logger
     -- , threadStore :: TMVar ThreadStore
-    -- , threadLife  :: TMVar Int
+    , threadLife  :: TMVar Int
     }
 
 -- | A server environment. Contains state that is accessible in the context of a specific
@@ -127,44 +128,14 @@ logMsg msg = do
 runIrc :: Irc a -> GlobalEnvironment -> IO a
 runIrc irc = runReaderT (unIrc irc)
 
--- getThreadLife :: Irc Int
--- getThreadLife = do
---     tlvar <- threadLife <$> ask
---     liftIO . atomically $ readTMVar tlvar
-
--- setThreadLife :: Int -> Irc ()
--- setThreadLife tl = do
---     tlvar <- threadLife <$> ask
---     liftIO . atomically $ swapTMVar tlvar tl
---     return ()
-
---------------------
--- Threading
---------------------
-
-type ThreadStore = S.Set Thread
-
-data ThreadType
-    = Sandboxed
-    | NotSandboxed
-    deriving (Show, Eq)
-
-data Thread
-    = Thread
-    { handle     :: Async ()
-    , threadType :: ThreadType
-    , startTime  :: Int
-    -- , plugName   :: Plugin
-    }
-
 type Writer = TQueue Message
 
 ------------------------------------------------------------------
 -- Plugin stuff
 ------------------------------------------------------------------
-initalizePlugin :: GlobalEnvironment -> Plugin -> IO InitializedPlugin
-initalizePlugin _ (PersistentPlugin {..}) = error "initalizePlugin: not defined"
-initalizePlugin env (Plugin {..}) = do
+initializePlugin :: GlobalEnvironment -> Plugin -> IO InitializedPlugin
+initializePlugin _ (PersistentPlugin {..}) = error "initializePlugin: not defined"
+initializePlugin env (Plugin {..}) = do
     x <- runIrc initialize env
     return $ InitializedPlugin plugName (map ($ x) handlers)
 
@@ -194,7 +165,7 @@ handles c f = do
 
 handlesAny :: [Text] -> PluginM () -> PluginM ()
 handlesAny cmds f =
-    mapM_ (flip handles f) cmds
+    mapM_ (`handles` f) cmds
 
 handlesCTCP :: Text -> PluginM () -> PluginM ()
 handlesCTCP c f =
@@ -229,7 +200,7 @@ getServer = server `fmap` getServerEnv
 sendCommand :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
 sendCommand c p = do
     w <- writer `fmap` getServerEnv
-    logMsg $ "Sending command: " <> (encode $ Message Nothing c p)
+    logMsg $ "Sending command: " <> encode (Message Nothing c p)
     liftIO . atomically . writeTQueue w $ Message Nothing c p
 
 sendPrivmsg :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
@@ -250,3 +221,8 @@ ctcpify [] = error "ctcpify: This shouldn't happen. Please report a bug."
 
 runPlugin :: MonadIO m => PluginEnvironment -> PluginM a -> m a
 runPlugin pEnv h =  liftIO $ runReaderT (unIrc h) pEnv
+
+getPluginName :: PluginM Text
+getPluginName = do
+    (InitializedPlugin name _) <- getPlugin
+    return name

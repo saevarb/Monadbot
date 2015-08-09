@@ -28,6 +28,7 @@ executable monadbot
                      , mmorph >= 1.0.4
                      , monad-control
                      , mtl
+                     , random >= 1.1
                      , stm
                      , text
                      , unix >= 2.7.1.0

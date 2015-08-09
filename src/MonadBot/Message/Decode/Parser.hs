@@ -7,10 +7,10 @@ module MonadBot.Message.Decode.Parser
 import Prelude hiding (takeWhile)
 import Control.Applicative
 import Data.Attoparsec.Text
-import Data.Attoparsec.Combinator
+
 import Data.Text (Text)
 import qualified Data.Text as T
-import qualified Data.Text.IO as TIO
+
 
 import MonadBot.Message
 

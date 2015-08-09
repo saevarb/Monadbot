@@ -15,7 +15,7 @@ toke _ =
     onlyForServer "127."
     onlyForChannel "#420" $
     handleBang "!toke" $ do
-        mapM (sendPrivmsg "#420")
+        mapM_ (sendPrivmsg "#420")
         sendCommand "PRIVMSG" [chan, serverAddress server <> ": " <> T.intercalate ", " (serverChannels server)]
 
 

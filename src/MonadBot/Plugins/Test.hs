@@ -3,12 +3,15 @@ module MonadBot.Plugins.Test
     ( plugin
     ) where
 
-import Control.Monad
+import           Control.Concurrent
+import           Control.Monad
 import qualified Data.Text as T
+import           System.Random
 
-import MonadBot.Plugin
-import MonadBot.Types
-import MonadBot.Message
+import Conduit
+
+import           MonadBot.Types
+import           MonadBot.Message
 
 nigger :: SimpleHandler
 nigger _ = handleBang "!nigger" $ do
@@ -29,6 +32,14 @@ serverCmd _ =
         forM_ srvs $ \srv ->
             sendCommand "PRIVMSG" [chan, serverAddress srv <> ": " <> T.intercalate ", " (serverChannels srv)]
 
+test :: SimpleHandler
+test _ =
+    handleBang "!test" $ do
+        d <- liftIO $ randomRIO (3, 10)
+        (chan:_) <- getParams
+        sendPrivmsg chan ["Waiting ", T.pack $ show d,  " seconds."]
+        liftIO $ threadDelay $ d * 1000000
+        sendPrivmsg chan ["Done."]
 
 plugin :: Plugin
-plugin = mkSimplePlugin "Test handler" [nigger, serverCmd]
+plugin = mkSimplePlugin "Test handler" [test, nigger, serverCmd]
