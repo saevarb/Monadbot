@@ -23,10 +23,10 @@ data ThreadState
 
 sandbox :: MonadIO m => PluginEnvironment -> PluginM a -> m ()
 sandbox pEnv f =
-    void . liftIO . async $ runPlugin pEnv $ do
+    void . liftIO . async . runPlugin pEnv $ do
         delay <- getThreadLife
         name <- getPluginName
-        t <- liftIO $ async $ runPlugin pEnv f
+        t <- liftIO . async $ runPlugin pEnv f
         liftIO $ threadDelay delay
         res <- liftIO $ poll t
         case res of
