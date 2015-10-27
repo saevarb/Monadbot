@@ -57,7 +57,7 @@ botApp srvEnv app =
         liftIO . forkIO . forever $ do
             msg <- atomically $ readTQueue wq
             yield (encode msg) =$= encodeUtf8C $$ appSink app
-            threadDelay 500000
+            threadDelay 250000
 
         gEnv <- lift getGlobalEnv
         initPlugins <- liftIO $ mapM (initializePlugin gEnv) allPlugins
