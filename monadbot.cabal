@@ -18,12 +18,13 @@ cabal-version:       >=1.10
 
 executable monadbot
   main-is:             Main.hs
-  extensions:           OverloadedStrings
+  extensions:          OverloadedStrings
   build-depends:       async
                      , attoparsec
                      , base
                      , conduit-combinators
                      , conduit-extra
+                     , network-conduit-tls
                      , containers
                      , mmorph >= 1.0.4
                      , monad-control
