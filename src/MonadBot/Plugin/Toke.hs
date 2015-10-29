@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MonadBot.Plugins.Toke
+module MonadBot.Plugin.Toke
     ( plugin
     ) where
 

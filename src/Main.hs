@@ -7,7 +7,8 @@ testConfig =
     , user    = "bar"
     , real    = "baz"
     , servers = [darchoods]
-    , timeout = 10
+    -- , servers = [nixers]
+    , timeout = 5
     }
 
 nixers :: ServerInfo
@@ -17,7 +18,7 @@ nixers
     , serverAddress  = "irc.nixers.net"
     , serverPass     = Nothing
     , useTLS         = False
-    , serverChannels = ["#monadbot"]
+    , serverChannels = ["#monadbot", "#nixers"]
     , nickServ       = Nothing
     }
 
@@ -25,6 +26,7 @@ darchoods :: ServerInfo
 darchoods
     = ServerInfo
     { serverPort     = 6667
+    -- , serverAddress  = "irc.darchoods.net"
     , serverAddress  = "127.0.0.1"
     , serverPass     = Nothing
     , serverChannels = ["#bots"]

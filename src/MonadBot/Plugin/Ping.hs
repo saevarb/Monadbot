@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MonadBot.Plugins.Ping
+module MonadBot.Plugin.Ping
     ( plugin
     ) where
 
