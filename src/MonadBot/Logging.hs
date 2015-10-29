@@ -6,7 +6,6 @@ import qualified Data.Text.IO as TIO
 import Control.Concurrent.STM
 import Control.Monad
 
-
 type Logger = TQueue Text
 
 logWorker :: TQueue Text -> IO ()

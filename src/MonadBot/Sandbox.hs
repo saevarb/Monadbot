@@ -5,8 +5,6 @@ module MonadBot.Sandbox
 import Control.Concurrent
 import Control.Exception
 import Control.Monad
-import Data.Monoid ((<>))
-import Data.Text (Text)
 import qualified Data.Text as T
 
 import Conduit
@@ -14,6 +12,7 @@ import Control.Concurrent.Async
 
 import MonadBot.Types
 import MonadBot.ThreadManager
+import MonadBot.Plugin.Development
 
 data ThreadState
     = Done

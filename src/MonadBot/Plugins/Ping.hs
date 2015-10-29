@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MonadBot.Plugin.Ping
+module MonadBot.Plugins.Ping
     ( plugin
     ) where
 
-
-import MonadBot.Types
+import MonadBot.Plugin.Development
 
 pingHandler :: SimpleHandler
 pingHandler = handles "PING" $ do

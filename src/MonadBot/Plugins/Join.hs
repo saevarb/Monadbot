@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MonadBot.Plugin.Join
+module MonadBot.Plugins.Join
     ( plugin
     ) where
-
 import System.Random
 
 import MonadBot.Types
+import MonadBot.Plugin.Development
 
 
 messages :: [Text]

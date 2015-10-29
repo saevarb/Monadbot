@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MonadBot.Plugin.Version
+module MonadBot.Plugins.Version
     ( plugin
     ) where
 
@@ -7,8 +7,9 @@ import Paths_monadbot (version)
 import Data.Version (showVersion)
 import Data.Text (pack)
 
-import MonadBot.Types
 import MonadBot.Message
+import MonadBot.Plugin.Development
+
 
 versionHandler :: SimpleHandler
 versionHandler = handlesCTCP "VERSION" $ do

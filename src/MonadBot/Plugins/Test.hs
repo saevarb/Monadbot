@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module MonadBot.Plugin.Test
+module MonadBot.Plugins.Test
     ( plugin
     ) where
 
@@ -8,10 +8,9 @@ import           Control.Monad
 import qualified Data.Text as T
 import           System.Random
 
-import Conduit
+import MonadBot.Message
+import MonadBot.Plugin.Development
 
-import           MonadBot.Types
-import           MonadBot.Message
 
 nigger :: SimpleHandler
 nigger = handleBang "!nigger" $ do

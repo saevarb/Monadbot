@@ -29,7 +29,7 @@ import           MonadBot.Message
 import           MonadBot.Message.Encode
 import           MonadBot.Message.Decode
 import           MonadBot.Logging
-import           MonadBot.Plugin
+import           MonadBot.Plugins
 import           MonadBot.Sandbox (sandbox)
 import           MonadBot.Utility (ppMessage)
 
