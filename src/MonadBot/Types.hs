@@ -45,6 +45,9 @@ module MonadBot.Types
     , putState
     , modifyState
     , swapState
+    , (<>)
+    , runIrc
+    , Prefix (..)
     ) where
 
 
@@ -159,11 +162,12 @@ data Plugin s
    -- , daemons :: [PersistentPluginM a ()]
    -- }
 
-data InitializedPlugin a
+data InitializedPlugin s
     = InitializedPlugin
     { _pluginName :: Text
-    , _state      :: PluginState a
-    , _handlers   :: [PluginM a ()]
+    , _state      :: PluginState s
+    , _handlers   :: [PluginM s ()]
+    , _destructor  :: s -> Irc ()
     }
 
 data PluginState a = PluginState (TMVar a)
@@ -187,7 +191,7 @@ initializePlugin :: GlobalEnvironment -> Hide Plugin -> IO (Hide InitializedPlug
 initializePlugin env (Hide (Plugin {..})) = do
     x <- runIrc constructor env
     s <- mkPluginState x
-    return $ Hide $ InitializedPlugin pluginName s handlers
+    return $ Hide $ InitializedPlugin pluginName s handlers destructor
 
 mkSimplePlugin :: Text -> [SimpleHandler] -> Plugin ()
 mkSimplePlugin name handlers =
@@ -279,7 +283,7 @@ runPlugin pEnv h =  liftIO $ runReaderT (unIrc h) pEnv
 
 getPluginName :: PluginM s Text
 getPluginName = do
-    (InitializedPlugin name _ _) <- getPlugin
+    (InitializedPlugin name _ _ _) <- getPlugin
     return name
 
 readState :: PluginM s s

@@ -8,6 +8,7 @@ module MonadBot
 import           Control.Concurrent (forkIO, threadDelay, killThread, ThreadId)
 import           Control.Concurrent.STM.TMVar
 import           Control.Concurrent.STM.TQueue (newTQueueIO, readTQueue)
+import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Morph (hoist)
 import           Control.Monad.Reader (asks)
@@ -43,36 +44,36 @@ handleMessage plugins =
               liftIO $ putStrLn e
           Right m' -> do
               lift . lift $ logMsg (ppMessage m')
-              forM_ plugins $ \(Hide p@(InitializedPlugin _ s hs)) -> do
+              forM_ plugins $ \(Hide p@(InitializedPlugin _ s hs _)) -> do
                   sEnv <- lift . lift $ getServerEnv
                   let pEnv = PluginEnvironment sEnv m' p s
                   mapM_ (sandbox pEnv) hs
 
 
 botApp :: ServerEnvironment -> AppData -> IO ()
-botApp srvEnv app =
-    runConduit . runReaderC srvEnv $ hoist unIrc $ do
-        -- Start writer thread
-        wq <- asks writer
-        liftIO . forkIO . forever $ do
-            msg <- atomically $ readTQueue wq
-            yield (encode msg) =$= encodeUtf8C $$ appSink app
-            threadDelay 250000
+botApp srvEnv app = do
+    let gEnv = globalEnv srvEnv
+    initPlugins <- liftIO $ mapM (initializePlugin gEnv) allPlugins
+    handle (\ThreadKilled -> runIrc (callDestructors initPlugins) gEnv) $
+        runConduit . runReaderC srvEnv $ hoist unIrc $ do
+            -- Start writer thread
+            wq <- asks writer
+            liftIO . forkIO . forever $ do
+                msg <- atomically $ readTQueue wq
+                yield (encode msg) =$= encodeUtf8C $$ appSink app
+                threadDelay 250000
 
-        gEnv <- lift getGlobalEnv
-        initPlugins <- liftIO $ mapM (initializePlugin gEnv) allPlugins
+            -- Send authentication messages
+            lift authenticate
 
-        -- Send authentication messages
-        lift authenticate
-
-        -- Decode bytestrings to Text
-        appSource app =$= decodeUtf8C
-            -- Chunk into lines
-            =$= linesUnboundedC
-            -- Remove trailing \r
-            =$= mapC T.init
-            -- Handle messages
-            $$ handleMessage initPlugins
+            -- Decode bytestrings to Text
+            appSource app =$= decodeUtf8C
+                -- Chunk into lines
+                =$= linesUnboundedC
+                -- Remove trailing \r
+                =$= mapC T.init
+                -- Handle messages
+                $$ handleMessage initPlugins
   where
     authenticate :: ServerM ()
     authenticate = do
@@ -82,7 +83,6 @@ botApp srvEnv app =
             =$= encodeUtf8C
             $$ appSink app
 
-    -- mkAuthMessage :: Producer ServerM Message
     mkAuthMessage :: ServerM [Message]
     mkAuthMessage = do
         sp <- (serverPass . server) `fmap` getServerEnv
@@ -139,3 +139,9 @@ runBot cfg = do
             putStrLn "Killing all threads" >>
             mapM_ killThread threads >>
             exitSuccess
+
+callDestructors plugins =
+    forM_ plugins $ \(Hide p) -> do
+        let (PluginState v) = _state p
+        s <- liftIO . atomically $ readTMVar v
+        _destructor p s
