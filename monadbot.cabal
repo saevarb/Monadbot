@@ -24,11 +24,12 @@ executable monadbot
                      , base
                      , conduit-combinators
                      , conduit-extra
-                     , network-conduit-tls
                      , containers
+                     , directory >= 1.2.2.0
                      , mmorph >= 1.0.4
                      , monad-control
                      , mtl
+                     , network-conduit-tls
                      , random >= 1.1
                      , stm
                      , text
