@@ -14,7 +14,7 @@ import           Control.Monad.Morph (hoist)
 import           Control.Monad.Reader (asks)
 import           Control.Monad.STM (atomically)
 import           Data.Maybe (catMaybes)
-import           Data.Text
+import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import           System.Exit
@@ -140,6 +140,7 @@ runBot cfg = do
             mapM_ killThread threads >>
             exitSuccess
 
+callDestructors :: [Hide InitializedPlugin] -> IrcT GlobalEnvironment IO ()
 callDestructors plugins =
     forM_ plugins $ \(Hide p) -> do
         let (PluginState v) = _state p

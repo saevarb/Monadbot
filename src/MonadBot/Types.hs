@@ -36,6 +36,7 @@ module MonadBot.Types
     , getPrefix
     , onlyForServer
     , onlyForChannel
+    , onlyForChannels
     , handlesAny
     , handlesCTCP
     , ctcpReply
@@ -57,6 +58,7 @@ import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad.Reader
 import           Control.Monad.State hiding (state)
+import           Data.List
 import qualified Data.Set as S
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -252,6 +254,11 @@ onlyForChannel :: Text -> PluginM a () -> PluginM a ()
 onlyForChannel channel f = do
     (chan:_) <- getParams
     when (chan == channel) f
+
+onlyForChannels :: [Text] -> PluginM a () -> PluginM a ()
+onlyForChannels channels f = do
+    (chan:_) <- getParams
+    maybe (return ()) (const f) $ find (== chan) channels
 
 getServer :: PluginM a ServerInfo
 getServer = server `fmap` getServerEnv
