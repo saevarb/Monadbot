@@ -19,16 +19,20 @@ module MonadBot.Plugin.Development
     , putState
     , modifyState
     , swapState
+    , readFileS
+    , writeFileS
     , Prefix (..)
     , module MonadBot.Types
     ) where
 
-import Data.List
+import           Data.List
 import qualified Data.Text as T
+import           Data.Text.IO
+import           System.IO (withFile, IOMode (..))
 
-import MonadBot.Types
-import MonadBot.Message (Message (..), Prefix (..))
-import MonadBot.Message.Encode (encode)
+import           MonadBot.Types
+import           MonadBot.Message (Message (..), Prefix (..))
+import           MonadBot.Message.Encode (encode)
 
 mkSimplePlugin :: Text -> [SimpleHandler] -> Plugin ()
 mkSimplePlugin name handlers =
@@ -143,3 +147,18 @@ modifyState f = readState >>= swapState . f
 -- withState f = do
 --     get
 --     liftIO . atomically $ putTMVar v (f s)
+
+-- readFileS :: (HasGlobalEnv s, MonadIO m) => FilePath -> IrcT s m Text
+-- readFileS :: (HasServerEnv s, MonadIO m) => FilePath -> IrcT s m Text
+readFileS :: FilePath -> Irc Text
+readFileS f =
+    liftIO $ withFile f ReadMode $ \h -> do
+        contents <- hGetContents h
+        T.length contents `seq` return contents
+
+-- writeFileS :: (HasGlobalEnv s, MonadIO m) => FilePath -> Text -> IrcT s m ()
+-- writeFileS :: (HasServerEnv s, MonadIO m) => FilePath -> Text -> IrcT s m ()
+writeFileS :: FilePath -> Text -> Irc ()
+writeFileS f c =
+    liftIO $ withFile f WriteMode $ \h ->
+        hPutStr h c

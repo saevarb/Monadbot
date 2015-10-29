@@ -4,7 +4,6 @@ module MonadBot.Plugins.Join
     ) where
 import System.Random
 
-import MonadBot.Types
 import MonadBot.Plugin.Development
 
 
@@ -25,6 +24,7 @@ messages =
     , "SCV good to go, sir."
     ]
 
+joinChannel :: (MonadIO m, HasServerEnv s) => Text -> IrcT s m ()
 joinChannel channel = do
     choice <- liftIO $ randomRIO (0, m)
     sendCommand "JOIN" [channel]
