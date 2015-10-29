@@ -51,11 +51,11 @@ setThreadLife tl = do
 -- Threading
 --------------------
 
-type ThreadStore = S.Set Thread
+-- type ThreadStore = S.Set Thread
 
-data Thread
-    = Thread
-    { handle    :: Async ()
-    , startTime :: Int
-    , plugin    :: InitializedPlugin
-    }
+-- data Thread
+--     = Thread
+--     { handle    :: Async ()
+--     , startTime :: Int
+--     , plugin    :: InitializedPlugin
+--     }

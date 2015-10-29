@@ -12,7 +12,7 @@ import MonadBot.Message
 
 toke :: SimpleHandler
 toke _ =
-    onlyForServer "127."
+    onlyForServer "127.0.0.1"
     onlyForChannel "#420" $
     handleBang "!toke" $ do
         mapM_ (sendPrivmsg "#420")

@@ -7,9 +7,9 @@ module MonadBot.Plugins.Ping
 import MonadBot.Types
 
 pingHandler :: SimpleHandler
-pingHandler _ = handles "PING" $ do
+pingHandler = handles "PING" $ do
     params <- getParams
     sendCommand "PONG" params
 
-plugin :: Plugin
+plugin :: Plugin ()
 plugin = mkSimplePlugin "Ping handler" [pingHandler]

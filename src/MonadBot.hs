@@ -33,7 +33,7 @@ import           MonadBot.Sandbox (sandbox)
 import           MonadBot.Utility (ppMessage)
 
 handleMessage :: (HasServerEnv s, MonadIO m)
-              => [InitializedPlugin]
+              => [Hide InitializedPlugin]
               -> Consumer Text (Sink () (IrcT s m)) ()
 handleMessage plugins =
     awaitForever $ \line -> do
@@ -43,9 +43,9 @@ handleMessage plugins =
               liftIO $ putStrLn e
           Right m' -> do
               lift . lift $ logMsg (ppMessage m')
-              forM_ plugins $ \p@(InitializedPlugin _ hs) -> do
+              forM_ plugins $ \(Hide p@(InitializedPlugin _ s hs)) -> do
                   sEnv <- lift . lift $ getServerEnv
-                  let pEnv = PluginEnvironment sEnv m' p
+                  let pEnv = PluginEnvironment sEnv m' p s
                   mapM_ (sandbox pEnv) hs
 
 

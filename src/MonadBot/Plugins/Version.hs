@@ -11,12 +11,12 @@ import MonadBot.Types
 import MonadBot.Message
 
 versionHandler :: SimpleHandler
-versionHandler _ = handlesCTCP "VERSION" $ do
+versionHandler = handlesCTCP "VERSION" $ do
     pref <- getPrefix
     case pref of
         Just (UserPrefix p _ _) ->
             ctcpReply p ["VERSION", "monadbot v" <> pack (showVersion version)]
         _ -> return ()
 
-plugin :: Plugin
+plugin :: Plugin ()
 plugin = mkSimplePlugin "CTCP VERSION handler" [versionHandler]

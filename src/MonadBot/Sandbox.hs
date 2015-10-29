@@ -21,7 +21,7 @@ data ThreadState
     | Exception SomeException
     deriving (Show)
 
-sandbox :: MonadIO m => PluginEnvironment -> PluginM a -> m ()
+sandbox :: MonadIO m => PluginEnvironment s -> PluginM s a -> m ()
 sandbox pEnv f =
     void . liftIO . async . runPlugin pEnv $ do
         delay <- getThreadLife

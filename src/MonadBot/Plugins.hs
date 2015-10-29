@@ -9,11 +9,11 @@ import qualified MonadBot.Plugins.Test as Test
 import qualified MonadBot.Plugins.Darchoods as Darchoods
 import qualified MonadBot.Plugins.Version as Version
 
-allPlugins :: [Plugin]
+allPlugins :: [Hide Plugin]
 allPlugins =
-    [ Ping.plugin
-    , Join.plugin
-    , Test.plugin
-    , Darchoods.plugin
-    , Version.plugin
+    [ Hide Ping.plugin
+    , Hide Join.plugin
+    , Hide Test.plugin
+    , Hide Darchoods.plugin
+    , Hide Version.plugin
     ]

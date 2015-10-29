@@ -3,10 +3,6 @@ module MonadBot.Plugins.Join
     ( plugin
     ) where
 
-import Control.Monad
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Monoid
 import System.Random
 
 import MonadBot.Types
@@ -37,16 +33,16 @@ joinChannel channel = do
     m = length messages - 1
 
 joinHandler :: SimpleHandler
-joinHandler _ = handles "376" $ do
+joinHandler = handles "376" $ do
     srv <- getServer
     logMsg "Joining channels"
     mapM_ joinChannel (serverChannels srv)
 
 rejoin :: SimpleHandler
-rejoin _ = handleBang "!rejoin" $ do
+rejoin = handleBang "!rejoin" $ do
     (chan:_) <- getParams
     sendCommand "PART" [chan]
     joinChannel chan
 
-plugin :: Plugin
+plugin :: Plugin ()
 plugin = mkSimplePlugin "Join handler" [joinHandler, rejoin]

@@ -5,18 +5,23 @@
 {-# LANGUAGE ExistentialQuantification #-}
 module MonadBot.Types
     ( liftIO
+    , Text
     , HasGlobalEnv (..)
     , HasServerEnv (..)
     , IrcConfig (..)
     , IrcT (..)
+    , Hide (..)
     , Irc
     , PluginM
     , ServerM
+    , SimpleHandler
     , ServerInfo (..)
     , GlobalEnvironment (..)
     , ServerEnvironment (..)
     , PluginEnvironment (..)
+    , Plugin (..)
     , InitializedPlugin (..)
+    , PluginState (..)
     , initializePlugin
     , runPlugin
     , getPluginName
@@ -27,8 +32,6 @@ module MonadBot.Types
     , handleBang
     , sendCommand
     , mkSimplePlugin
-    , Plugin
-    , SimpleHandler
     , getServer
     , getPrefix
     , onlyForServer
@@ -36,14 +39,21 @@ module MonadBot.Types
     , handlesAny
     , handlesCTCP
     , ctcpReply
+    , readTMVar
+    , atomically
+    , readState
+    , putState
+    , modifyState
+    , swapState
     ) where
+
 
 import           Conduit
 import           Control.Applicative
 import           Control.Concurrent.Async
 import           Control.Concurrent.STM
 import           Control.Monad.Reader
-import           Control.Monad.State
+import           Control.Monad.State hiding (state)
 import qualified Data.Set as S
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -56,7 +66,7 @@ import           MonadBot.Message.Encode
 class HasServerEnv s where
     getServerEnv :: (Monad m) => IrcT s m ServerEnvironment
 
-instance HasServerEnv PluginEnvironment where
+instance HasServerEnv (PluginEnvironment a) where
     getServerEnv = asks serverEnv
 
 instance HasServerEnv ServerEnvironment where
@@ -113,11 +123,12 @@ data ServerEnvironment
 
 -- | A plugin environment. Contains state that is accessible in the context of a specific
 -- rnning plugin, plus the server state and global state.
-data PluginEnvironment
+data PluginEnvironment a
     = PluginEnvironment
     { serverEnv :: ServerEnvironment
     , message   :: Message
-    , handler   :: InitializedPlugin
+    , handler   :: InitializedPlugin a
+    , state     :: PluginState a
     }
 
 -- | Monad for irc computations.
@@ -131,31 +142,36 @@ newtype IrcT s m a
 type Irc                 = IrcT GlobalEnvironment IO
 type ServerM             = IrcT ServerEnvironment IO
 type PersistentPluginM a = IrcT ServerEnvironment (StateT a IO)
-type PluginM             = IrcT PluginEnvironment IO
+type PluginM s           = IrcT (PluginEnvironment s) IO
 
-data Subscription
+data Hide f = forall a. Hide (f a)
+type SimpleHandler = PluginM () ()
 
-type SimpleHandler = () -> PluginM ()
-
-data Plugin
-   = forall a. Plugin
-   { plugName :: Text
-   , handlers :: [a -> PluginM ()]
-   , initialize :: Irc a
+data Plugin s
+   = Plugin
+   { pluginName  :: Text
+   , handlers    :: [PluginM s ()]
+   , constructor :: Irc s
+   , destructor  :: s -> Irc ()
    }
-   | forall a. PersistentPlugin
-   { construct :: Irc a
-   , destruct  :: a -> Irc ()
-   , daemons :: [PersistentPluginM a ()]
-   }
+   -- | forall a. PersistentPlugin
+   -- { construct :: Irc a -- , :: a -> Irc ()
+   -- , daemons :: [PersistentPluginM a ()]
+   -- }
 
-data InitializedPlugin
-    = InitializedPlugin Text [PluginM ()]
+data InitializedPlugin a
+    = InitializedPlugin
+    { _pluginName :: Text
+    , _state      :: PluginState a
+    , _handlers   :: [PluginM a ()]
+    }
 
-logMsg :: (MonadIO m, HasGlobalEnv s) => Text -> IrcT s m ()
-logMsg msg = do
-    lgr <- logger `fmap` getGlobalEnv
-    liftIO . atomically . writeTQueue lgr $ msg
+data PluginState a = PluginState (TMVar a)
+
+mkPluginState :: a -> IO (PluginState a)
+mkPluginState a = do
+    var <- newTMVarIO a
+    return $ PluginState var
 
 runIrc :: Irc a -> GlobalEnvironment -> IO a
 runIrc irc = runReaderT (unIrc irc)
@@ -165,41 +181,48 @@ type Writer = TQueue Message
 ------------------------------------------------------------------
 -- Plugin stuff
 ------------------------------------------------------------------
-initializePlugin :: GlobalEnvironment -> Plugin -> IO InitializedPlugin
-initializePlugin _ (PersistentPlugin {..}) = error "initializePlugin: not defined"
-initializePlugin env (Plugin {..}) = do
-    x <- runIrc initialize env
-    return $ InitializedPlugin plugName (map ($ x) handlers)
+initializePlugin :: GlobalEnvironment -> Hide Plugin -> IO (Hide InitializedPlugin)
+-- initializePlugin _ (PersistentPlugin {..}) =
+--     error "initializePlugin (PersistentPlugin (..)): not defined"
+initializePlugin env (Hide (Plugin {..})) = do
+    x <- runIrc constructor env
+    s <- mkPluginState x
+    return $ Hide $ InitializedPlugin pluginName s handlers
 
-mkSimplePlugin :: Text -> [SimpleHandler] -> Plugin
+mkSimplePlugin :: Text -> [SimpleHandler] -> Plugin ()
 mkSimplePlugin name handlers =
-    Plugin name handlers (return ())
+    Plugin name handlers (return ()) (const $ return ())
 
-getMessage :: PluginM Message
+getMessage :: PluginM a Message
 getMessage = asks message
 
-getPrefix :: PluginM (Maybe Prefix)
+getPrefix :: PluginM a (Maybe Prefix)
 getPrefix = prefix `fmap` getMessage
 
-getParams :: PluginM [Text]
+getParams :: PluginM a [Text]
 getParams = params `fmap` getMessage
 
-getCommand :: PluginM Text
+getCommand :: PluginM a Text
 getCommand = command `fmap` getMessage
 
-getPlugin :: PluginM InitializedPlugin
+getPlugin :: PluginM a (InitializedPlugin a)
 getPlugin = asks handler
 
-handles :: Text -> PluginM () -> PluginM ()
+logMsg :: (MonadIO m, HasGlobalEnv s) => Text -> IrcT s m ()
+logMsg msg = do
+    lgr <- logger `fmap` getGlobalEnv
+    liftIO . atomically . writeTQueue lgr $ msg
+
+handles :: Text -> PluginM a () -> PluginM a ()
 handles c f = do
     cmd <- getCommand
     when (cmd == c) f
 
-handlesAny :: [Text] -> PluginM () -> PluginM ()
+handlesAny :: [Text] -> PluginM a () -> PluginM a ()
 handlesAny cmds f =
     mapM_ (`handles` f) cmds
 
-handlesCTCP :: Text -> PluginM () -> PluginM ()
+handlesCTCP :: Text -> PluginM a () -> PluginM a ()
 handlesCTCP c f =
     handlesAny ["PRIVMSG", "NOTICE"] $ do
         params <- getParams
@@ -208,7 +231,7 @@ handlesCTCP c f =
         when ("\x01" <> c <> "\x01" == T.tail cmd) f
 
 
-handleBang :: Text -> PluginM () -> PluginM ()
+handleBang :: Text -> PluginM a () -> PluginM a ()
 handleBang bang f =
     handles "PRIVMSG" $ do
         p <- getParams
@@ -216,17 +239,17 @@ handleBang bang f =
         let (_:first:_) = p
         when (T.tail first == bang) f
 
-onlyForServer :: Text -> PluginM () -> PluginM ()
+onlyForServer :: Text -> PluginM a () -> PluginM a ()
 onlyForServer srv f = do
     addr <- serverAddress <$> getServer
     when (addr == srv) f
 
-onlyForChannel :: Text -> PluginM () -> PluginM ()
+onlyForChannel :: Text -> PluginM a () -> PluginM a ()
 onlyForChannel channel f = do
     (chan:_) <- getParams
     when (chan == channel) f
 
-getServer :: PluginM ServerInfo
+getServer :: PluginM a ServerInfo
 getServer = server `fmap` getServerEnv
 
 sendCommand :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
@@ -251,10 +274,34 @@ ctcpify :: [Text] -> [Text]
 ctcpify (x:xs) = ("\x01" <> x) : init xs <> [last xs <> "\x01"]
 ctcpify [] = error "ctcpify: This shouldn't happen. Please report a bug."
 
-runPlugin :: MonadIO m => PluginEnvironment -> PluginM a -> m a
+runPlugin :: MonadIO m => PluginEnvironment s -> PluginM s a -> m a
 runPlugin pEnv h =  liftIO $ runReaderT (unIrc h) pEnv
 
-getPluginName :: PluginM Text
+getPluginName :: PluginM s Text
 getPluginName = do
-    (InitializedPlugin name _) <- getPlugin
+    (InitializedPlugin name _ _) <- getPlugin
     return name
+
+readState :: PluginM s s
+readState = do
+    (PluginState v) <- asks state
+    liftIO . atomically $ readTMVar v
+    -- return s
+
+putState :: s -> PluginM s ()
+putState s = do
+   (PluginState v) <- asks state
+   liftIO . atomically $ putTMVar v s
+
+swapState :: s -> PluginM s s
+swapState s = do
+   (PluginState v) <- asks state
+   liftIO . atomically $ swapTMVar v s
+
+modifyState :: (s -> s) -> PluginM s s
+modifyState f = readState >>= swapState . f
+
+-- withState :: (s -> PluginM s ()) -> PluginM s ()
+-- withState f = do
+--     get
+--     liftIO . atomically $ putTMVar v (f s)
