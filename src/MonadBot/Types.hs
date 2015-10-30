@@ -6,14 +6,20 @@
 module MonadBot.Types
     ( HasGlobalEnv (..)
     , HasServerEnv (..)
-    , IrcConfig (..)
-    , IrcT (..)
     , Hide (..)
+    , IrcT (..)
     , Irc
     , PluginM
     , ServerM
     , SimpleHandler
+    , IrcConfig (..)
+    , makeIrcConfig
     , ServerInfo (..)
+    , makeServerInfo
+    , AuthInfo (..)
+    , AuthEntries (..)
+    , addOp
+    , emptyAuth
     , GlobalEnvironment (..)
     , ServerEnvironment (..)
     , PluginEnvironment (..)
@@ -26,6 +32,7 @@ module MonadBot.Types
     , logMsg
     -- * Reexports
     , Text
+    , Map
     , module Data.Monoid
     , module Control.Monad.Reader
     , module Control.Concurrent.STM
@@ -38,9 +45,12 @@ import           Control.Applicative
 import           Control.Concurrent.STM
 import           Control.Monad.Reader
 import           Control.Monad.State hiding (state)
+import           Data.List
+import           Data.Map.Strict (Map)
+import qualified Data.Map.Strict as M
+import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as T
-import Data.Monoid
 
 import           MonadBot.Logging
 
@@ -65,12 +75,17 @@ instance (HasServerEnv a) => HasGlobalEnv a where
 -- | The bot's config.
 data IrcConfig =
     IrcConfig
-    { nick    :: Text
-    , user    :: Text
-    , real    :: Text
-    , servers :: [ServerInfo]
-    , timeout :: Int
+    { nick        :: Text
+    , user        :: Text
+    , real        :: Text
+    , servers     :: [ServerInfo]
+    , timeout     :: Int
+    , authInfoDir :: Text
     } deriving (Eq, Read, Show)
+
+makeIrcConfig :: Text -> Text -> Text -> [ServerInfo] -> IrcConfig
+makeIrcConfig n u r srvs =
+    IrcConfig n u r srvs 30 "authinfo"
 
 -- | Contains information needed to connect to a server.
 data ServerInfo
@@ -81,8 +96,12 @@ data ServerInfo
     , serverChannels :: [Text]
     , useTLS         :: Bool
     , nickServ       :: Maybe (Text, Text)
+    , authEntries    :: AuthEntries
     } deriving (Eq, Read, Show)
 
+makeServerInfo :: Text -> Int -> [Text] -> Bool -> ServerInfo
+makeServerInfo addr port chans tls =
+    ServerInfo port addr Nothing chans tls Nothing emptyAuth
 
 -- | The global environment. This contains all resources that are shared between servers.
 -- The data that can be modified is stored in 'TMVars' such that any modifications will
@@ -103,6 +122,7 @@ data ServerEnvironment
     { globalEnv :: GlobalEnvironment
     , server    :: ServerInfo
     , writer    :: Writer
+    , authInfo  :: AuthInfo
     }
 
 -- | A plugin environment. Contains state that is accessible in the context of a specific
@@ -142,6 +162,30 @@ data InitializedPlugin s
     , _handlers   :: [PluginM s ()]
     , _destructor  :: s -> Irc ()
     }
+
+type Group = Text
+type User  = Prefix
+
+data AuthInfo
+    = AuthInfo (TMVar AuthEntries)
+
+data AuthEntries
+    = AuthEntries
+    { groups :: [Group]
+    , users :: Map User Group
+    } deriving (Show, Read, Eq)
+
+emptyAuth :: AuthEntries
+emptyAuth = AuthEntries [] M.empty
+
+
+addOp :: Text -> Text -> Text -> Group -> ServerInfo -> ServerInfo
+addOp n u h g si =
+    let (AuthEntries gs um) = authEntries si
+        new = AuthEntries
+              (nub $ g : gs)
+              (M.insert (UserPrefix n (Just u) (Just h)) g um)
+    in si { authEntries = new }
 
 data Hide f = forall a. Hide (f a)
 

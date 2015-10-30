@@ -19,9 +19,9 @@ data Message
 
 data Prefix
     = ServerPrefix Text
-    | UserPrefix Text (Maybe Text) (Maybe Text)
-    deriving (Show, Eq, Read)
-
-
-
-
+    | UserPrefix
+    { pNick :: Text
+    , pUser :: Maybe Text
+    , pHost :: Maybe Text
+    }
+    deriving (Show, Eq, Read, Ord)

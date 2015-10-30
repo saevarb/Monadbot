@@ -9,6 +9,7 @@ import qualified MonadBot.Plugins.Test as Test
 import qualified MonadBot.Plugins.Darchoods as Darchoods
 import qualified MonadBot.Plugins.Version as Version
 import qualified MonadBot.Plugins.Nixers as Nixers
+import qualified MonadBot.Plugins.Auth as Auth
 
 allPlugins :: [Hide Plugin]
 allPlugins =
@@ -18,4 +19,5 @@ allPlugins =
     , Hide Darchoods.plugin
     , Hide Version.plugin
     , Hide Nixers.plugin
+    , Hide Auth.plugin
     ]

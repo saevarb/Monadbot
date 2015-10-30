@@ -2,6 +2,8 @@
 module MonadBot.Plugin.Development
     ( getPluginName
     , getParams
+    , getAuthEntries
+    , modifyAuthEntries
     , sendPrivmsg
     , handles
     , handleBang
@@ -12,6 +14,8 @@ module MonadBot.Plugin.Development
     , onlyForServer
     , onlyForChannel
     , onlyForChannels
+    , whenOp
+    , whenInGroup
     , handlesAny
     , handlesCTCP
     , ctcpReply
@@ -28,7 +32,9 @@ module MonadBot.Plugin.Development
 import           Data.List
 import qualified Data.Text as T
 import           Data.Text.IO
+import qualified Data.Map.Strict as M
 import           System.IO (withFile, IOMode (..))
+import System.Random
 
 import           MonadBot.Types
 import           MonadBot.Message (Message (..), Prefix (..))
@@ -97,6 +103,18 @@ onlyForChannels channels f = do
 getServer :: PluginM a ServerInfo
 getServer = server `fmap` getServerEnv
 
+getAuthEntries :: PluginM s AuthEntries
+getAuthEntries = do
+    (AuthInfo v) <- authInfo <$> getServerEnv
+    liftIO . atomically $ readTMVar v
+
+modifyAuthEntries :: (AuthEntries -> AuthEntries) -> PluginM s AuthEntries
+modifyAuthEntries f = do
+    (AuthInfo v) <- authInfo <$> getServerEnv
+    ae <- getAuthEntries
+    liftIO . atomically $ swapTMVar v $ f ae
+
+
 sendCommand :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
 sendCommand c p = do
     w <- writer `fmap` getServerEnv
@@ -143,22 +161,52 @@ swapState s = do
 modifyState :: (s -> s) -> PluginM s s
 modifyState f = readState >>= swapState . f
 
--- withState :: (s -> PluginM s ()) -> PluginM s ()
--- withState f = do
---     get
---     liftIO . atomically $ putTMVar v (f s)
-
--- readFileS :: (HasGlobalEnv s, MonadIO m) => FilePath -> IrcT s m Text
--- readFileS :: (HasServerEnv s, MonadIO m) => FilePath -> IrcT s m Text
 readFileS :: FilePath -> Irc Text
 readFileS f =
     liftIO $ withFile f ReadMode $ \h -> do
         contents <- hGetContents h
         T.length contents `seq` return contents
 
--- writeFileS :: (HasGlobalEnv s, MonadIO m) => FilePath -> Text -> IrcT s m ()
--- writeFileS :: (HasServerEnv s, MonadIO m) => FilePath -> Text -> IrcT s m ()
 writeFileS :: FilePath -> Text -> Irc ()
 writeFileS f c =
     liftIO $ withFile f WriteMode $ \h ->
         hPutStr h c
+
+-- onlyForChannels :: [Text] -> PluginM a () -> PluginM a ()
+whenOp :: PluginM s () -> PluginM s ()
+whenOp f = handles "PRIVMSG" $ do
+    (AuthEntries gs um) <- getAuthEntries
+    (Just (prefix@(UserPrefix n _ _))) <- getPrefix
+    (chan:_) <- getParams
+    if (M.member prefix um)
+    then f
+    else do
+      insult <- getRandomInsult n
+      sendPrivmsg chan [insult]
+
+getRandomInsult n = do
+    idx <- liftIO $ randomRIO (0, length insults - 1)
+    return $ insults !! idx $ n
+  where
+    insults =
+        [ \n -> "That command is not for faggots, " <> n <> "."
+        , \n -> "No, " <> n <> "."
+        , \_ -> "Access denied."
+        , \n -> n <> ": Nope."
+        ]
+
+whenInGroup :: Text -> PluginM s () -> PluginM s ()
+whenInGroup g f = handles "PRIVMSG" $ do
+    (AuthEntries gs um) <- getAuthEntries
+    (Just (prefix@(UserPrefix n _ _))) <- getPrefix
+    (chan:_) <- getParams
+    case M.lookup prefix um of
+        (Just g') ->
+            if (g == g')
+            then f
+            else do
+              insult <- getRandomInsult n
+              sendPrivmsg chan [insult]
+        Nothing -> do
+            insult <- getRandomInsult n
+            sendPrivmsg chan [insult]

@@ -8,7 +8,6 @@ import           Control.Monad
 import qualified Data.Text as T
 import           System.Random
 
-import MonadBot.Message
 import MonadBot.Plugin.Development
 
 
@@ -41,12 +40,14 @@ test =
         sendPrivmsg chan ["Done."]
 
 stateTest :: PluginM Int ()
-stateTest = handleBang "!test" $ do
-    (chan:_) <- getParams
-    i <- readState
-    sendPrivmsg chan ["Value before incrementing: ", T.pack $ show i]
-    modifyState (+1)
-    return ()
+stateTest =
+    handleBang "!test" $ do
+    whenOp $ do
+        (chan:_) <- getParams
+        i <- readState
+        sendPrivmsg chan ["Value before incrementing: ", T.pack $ show i]
+        modifyState (+1)
+        return ()
 
 plugin :: Plugin Int
 -- plugin = mkSimplePlugin "Test handler" [test, nigger, serverCmd]

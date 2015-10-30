@@ -2,7 +2,10 @@
 module MonadBot
     ( runBot
     , IrcConfig (..)
+    , makeIrcConfig
     , ServerInfo (..)
+    , makeServerInfo
+    , addOp
     ) where
 
 import           Control.Concurrent (forkIO, threadDelay, killThread, ThreadId)
@@ -17,6 +20,8 @@ import           Data.Maybe (catMaybes)
 import           Data.Text (Text)
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
+import qualified Data.Text.IO as TIO
+import           System.Directory
 import           System.Exit
 import           System.Posix.Signals
 
@@ -100,11 +105,20 @@ makeGlobalEnv cfg = do
     lgr <- newTQueueIO
     return $ GlobalEnvironment (nick cfg) (servers cfg) lgr tlife
 
-makeServerEnv :: GlobalEnvironment -> ServerInfo -> IO ServerEnvironment
-makeServerEnv gEnv srv = do
+makeServerEnv :: Text -> GlobalEnvironment -> ServerInfo -> IO ServerEnvironment
+makeServerEnv filename gEnv srv = do
     -- Writer specific to server
     w <- newTQueueIO
-    return $ ServerEnvironment gEnv srv w
+    ai <- AuthInfo <$> (readAuthEntries >>= newTMVarIO)
+    return $ ServerEnvironment gEnv srv w ai
+  where
+    readAuthEntries :: IO AuthEntries
+    -- readAuthEntries = do
+    readAuthEntries = do
+        fileOk <- doesFileExist $ T.unpack filename
+        if fileOk
+        then read . T.unpack <$> TIO.readFile (T.unpack filename)
+        else return (authEntries srv)
 
 connectToServer :: ServerEnvironment -> IO ThreadId
 connectToServer srvEnv = do
@@ -123,22 +137,37 @@ runBot cfg = do
     putStrLn "Starting logger.."
     forkIO $ logWorker (logger gEnv)
 
-    threads <- forM (servers cfg) $ \srv -> do
-        printf "Connecting to %s..\n" (T.unpack $ serverAddress srv)
-        srvEnv <- makeServerEnv gEnv srv
-        connectToServer srvEnv
+    dirOk <- doesDirectoryExist (T.unpack $ authInfoDir cfg)
+    unless dirOk $
+        createDirectory (T.unpack $ authInfoDir cfg)
+
+
+    srvEnvs <- mapM (\s -> makeServerEnv (mkAuthFile s) gEnv s) (servers cfg)
+    threads <- forM srvEnvs $ \se -> do
+        printf "Connecting to %s..\n" (T.unpack $ serverAddress . server $ se)
+        connectToServer se
 
     installHandler sigINT (sigIntHandler threads) Nothing
 
     getChar
     putStrLn "Killing all threads"
     mapM_ killThread threads
+    putStrLn "Saving auth info.."
+    forM_ srvEnvs $ \se -> do
+        let (AuthInfo v) = authInfo se
+        ae <- liftIO . atomically $ readTMVar v
+        TIO.putStrLn $ "\t" <> serverAddress (server se)
+        TIO.writeFile (T.unpack . mkAuthFile $ server se) $ T.pack $ show ae
+    putStrLn "Goodbye."
   where
     sigIntHandler threads =
         CatchOnce $
             putStrLn "Killing all threads" >>
             mapM_ killThread threads >>
             exitSuccess
+    mkAuthFile s =
+        (T.reverse . T.dropWhile (== '/') . T.reverse $ authInfoDir cfg)
+        <> "/" <> serverAddress s <> ".auth"
 
 callDestructors :: [Hide InitializedPlugin] -> IrcT GlobalEnvironment IO ()
 callDestructors plugins =
