@@ -27,6 +27,7 @@ import           System.Posix.Signals
 
 import           Conduit
 import           Data.Conduit.Network
+import           Data.Conduit.Network.TLS
 import           Text.Printf
 
 import           MonadBot.Types
@@ -121,14 +122,19 @@ makeServerEnv filename gEnv srv = do
         else return (authEntries srv)
 
 connectToServer :: ServerEnvironment -> IO ThreadId
-connectToServer srvEnv = do
-        let cs = settings (server srvEnv)
-        -- TODO: This should be forkIO'd
-        forkIO $ runTCPClient cs (botApp srvEnv)
+connectToServer srvEnv =
+    case useTLS (server srvEnv) of
+        False ->
+            forkIO $ runTCPClient (nonTLSSettings $ server srvEnv) (botApp srvEnv)
+        _ ->
+            forkIO $ runTLSClient (tlsSettings $ server srvEnv) (botApp srvEnv)
   where
-    settings :: ServerInfo -> ClientSettings
-    settings si =
+    nonTLSSettings :: ServerInfo -> ClientSettings
+    nonTLSSettings si =
         clientSettings (serverPort si) (TE.encodeUtf8 $ serverAddress si)
+    tlsSettings :: ServerInfo -> TLSClientConfig
+    tlsSettings si =
+        tlsClientConfig (serverPort si) (TE.encodeUtf8 $ serverAddress si)
 
 runBot :: IrcConfig -> IO ()
 runBot cfg = do
