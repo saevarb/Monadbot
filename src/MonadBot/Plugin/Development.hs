@@ -33,16 +33,16 @@ import           Data.List
 import qualified Data.Text as T
 import           Data.Text.IO
 import qualified Data.Map.Strict as M
-import           System.IO (withFile, IOMode (..))
+import qualified Data.Set as S
 import System.Random
+import           System.IO (withFile, IOMode (..))
 
 import           MonadBot.Types
 import           MonadBot.Message (Message (..), Prefix (..))
-import           MonadBot.Message.Encode (encode)
 
 mkSimplePlugin :: Text -> [SimpleHandler] -> Plugin ()
-mkSimplePlugin name handlers =
-    Plugin name handlers (return ()) (const $ return ())
+mkSimplePlugin name hs =
+    Plugin name hs (return ()) (const $ return ())
 
 getMessage :: PluginM a Message
 getMessage = asks message
@@ -71,9 +71,9 @@ handlesAny cmds f =
 handlesCTCP :: Text -> PluginM a () -> PluginM a ()
 handlesCTCP c f =
     handlesAny ["PRIVMSG", "NOTICE"] $ do
-        params <- getParams
-        guard (not . null $ params)
-        let (_:cmd:_) = params
+        ps <- getParams
+        guard (not . null $ ps)
+        let (_:cmd:_) = ps
         when ("\x01" <> c <> "\x01" == T.tail cmd) f
 
 
@@ -175,35 +175,36 @@ writeFileS f c =
 -- onlyForChannels :: [Text] -> PluginM a () -> PluginM a ()
 whenOp :: PluginM s () -> PluginM s ()
 whenOp f = handles "PRIVMSG" $ do
-    (AuthEntries gs um) <- getAuthEntries
-    (Just (prefix@(UserPrefix n _ _))) <- getPrefix
+    (AuthEntries _ um) <- getAuthEntries
+    (Just (pr@(UserPrefix n _ _))) <- getPrefix
     (chan:_) <- getParams
-    if (M.member prefix um)
+    if M.member pr um
     then f
     else do
       insult <- getRandomInsult n
       sendPrivmsg chan [insult]
 
-getRandomInsult n = do
+getRandomInsult :: MonadIO m => Text -> m Text
+getRandomInsult victim = do
     idx <- liftIO $ randomRIO (0, length insults - 1)
-    return $ insults !! idx $ n
+    return $ insults !! idx $ victim
   where
     insults =
         [ \n -> "That command is not for faggots, " <> n <> "."
         , \n -> "No, " <> n <> "."
-        , \_ -> "Access denied."
-        , \n -> n <> ": Nope."
+        , const "Access denied."
+        , (<> ": Nope.")
         ]
 
 whenInGroup :: Text -> PluginM s () -> PluginM s ()
 whenInGroup g f = handles "PRIVMSG" $ do
-    (AuthEntries gs um) <- getAuthEntries
-    (Just (prefix@(UserPrefix n _ _))) <- getPrefix
+    (AuthEntries _ um) <- getAuthEntries
+    (Just (pref@(UserPrefix n _ _))) <- getPrefix
     (chan:_) <- getParams
-    case M.lookup prefix um of
+    case M.lookup pref um of
         (Just g') ->
-            if (g == g')
-            then f
+            if g `S.member` g' then
+              f
             else do
               insult <- getRandomInsult n
               sendPrivmsg chan [insult]

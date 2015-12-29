@@ -48,6 +48,8 @@ import           Control.Monad.State hiding (state)
 import           Data.List
 import           Data.Map.Strict (Map)
 import qualified Data.Map.Strict as M
+import           Data.Set (Set)
+import qualified Data.Set as S
 import           Data.Monoid
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -171,23 +173,25 @@ data AuthInfo
 
 data AuthEntries
     = AuthEntries
-    { groups :: [Group]
-    , users :: Map User Group
+    { groups :: Set Group
+    , users :: Map User (Set Group)
     } deriving (Show, Read, Eq)
 
 emptyAuth :: AuthEntries
-emptyAuth = AuthEntries [] M.empty
+emptyAuth = AuthEntries S.empty M.empty
 
 
 addOp :: Text -> Text -> Text -> Group -> ServerInfo -> ServerInfo
 addOp n u h g si =
     let (AuthEntries gs um) = authEntries si
         new = AuthEntries
-              (nub $ g : gs)
-              (M.insert (UserPrefix n (Just u) (Just h)) g um)
+              (S.insert g gs)
+              (M.insertWith S.union (UserPrefix n (Just u) (Just h)) (S.singleton g) um)
     in si { authEntries = new }
 
-data Hide f = forall a. Hide (f a)
+data Hide f
+    = forall a. Enabled (f a)
+    | forall a. Disabled (f a)
 
 data PluginState a = PluginState (TMVar a)
 
@@ -214,10 +218,10 @@ mkPluginState a = do
 initializePlugin :: GlobalEnvironment -> Hide Plugin -> IO (Hide InitializedPlugin)
 -- initializePlugin _ (PersistentPlugin {..}) =
 --     error "initializePlugin (PersistentPlugin (..)): not defined"
-initializePlugin env (Hide (Plugin {..})) = do
+initializePlugin env (Enabled (Plugin {..})) = do
     x <- runIrc constructor env
     s <- mkPluginState x
-    return $ Hide $ InitializedPlugin pluginName s handlers destructor
+    return $ Enabled $ InitializedPlugin pluginName s handlers destructor
 
 runPlugin :: MonadIO m => PluginEnvironment s -> PluginM s a -> m a
 runPlugin pEnv h =  liftIO $ runReaderT (unIrc h) pEnv

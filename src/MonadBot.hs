@@ -50,7 +50,7 @@ handleMessage plugins =
               liftIO $ putStrLn e
           Right m' -> do
               lift . lift $ logMsg (ppMessage m')
-              forM_ plugins $ \(Hide p@(InitializedPlugin _ s hs _)) -> do
+              forM_ plugins $ \(Enabled p@(InitializedPlugin _ s hs _)) -> do
                   sEnv <- lift . lift $ getServerEnv
                   let pEnv = PluginEnvironment sEnv m' p s
                   mapM_ (sandbox pEnv) hs
@@ -59,7 +59,8 @@ handleMessage plugins =
 botApp :: ServerEnvironment -> AppData -> IO ()
 botApp srvEnv app = do
     let gEnv = globalEnv srvEnv
-    initPlugins <- liftIO $ mapM (initializePlugin gEnv) allPlugins
+    initPlugins <- liftIO $ mapM (initializePlugin gEnv)
+                   [Enabled p | Enabled p <- allPlugins]
     handle (\ThreadKilled -> runIrc (callDestructors initPlugins) gEnv) $
         runConduit . runReaderC srvEnv $ hoist unIrc $ do
             -- Start writer thread
@@ -177,7 +178,7 @@ runBot cfg = do
 
 callDestructors :: [Hide InitializedPlugin] -> IrcT GlobalEnvironment IO ()
 callDestructors plugins =
-    forM_ plugins $ \(Hide p) -> do
+    forM_ plugins $ \(Enabled p) -> do
         let (PluginState v) = _state p
         s <- liftIO . atomically $ readTMVar v
         _destructor p s

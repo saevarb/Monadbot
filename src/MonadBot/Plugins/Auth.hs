@@ -6,6 +6,7 @@ module MonadBot.Plugins.Auth
 import           Data.List
 import qualified Data.Text as T
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
 import           MonadBot.Plugin.Development
 
@@ -18,7 +19,7 @@ addGroup =
     whenInGroup "owner" $ do
     (chan:_:g:_) <- getParams
     void $ modifyAuthEntries $ \ae ->
-        ae { groups = nub (g:groups ae) }
+        ae { groups = S.insert g (groups ae) }
     sendPrivmsg chan ["Group " <> g <> " added."]
 
 addUser :: PluginM AuthState ()
@@ -39,9 +40,9 @@ handleWhois =
     (AuthState (Just (g, chan))) <- readState
     (_:n:u:h:_) <- getParams
     sendPrivmsg chan ["Added user " <> n <> "."]
-    (AuthEntries gs _) <- getAuthEntries
+    (AuthEntries _ um) <- getAuthEntries
     void $ modifyAuthEntries $ \ae ->
-        ae { users = M.insert (UserPrefix n (Just u) (Just h)) g (users ae)}
+        ae { users = M.insertWith S.union (UserPrefix n (Just u) (Just h)) (S.singleton g) um}
     return ()
 
 listGroups :: PluginM a ()
@@ -50,7 +51,7 @@ listGroups =
     whenInGroup "owner" $ do
     (AuthEntries gs _) <- getAuthEntries
     (chan:_) <- getParams
-    sendPrivmsg chan ["My user groups are: " <> T.intercalate ", " gs]
+    sendPrivmsg chan ["My user groups are: " <> T.intercalate ", " (S.toList gs)]
 
 listUsers :: PluginM a ()
 listUsers =
@@ -59,10 +60,8 @@ listUsers =
     (AuthEntries _ um) <- getAuthEntries
     (chan:_) <- getParams
     sendPrivmsg chan ["These are my operators:"]
-    sendPrivmsg chan ["Group - Users"]
-    forM_ (groupBy (\a b -> snd a == snd b) . sortOn snd $ M.toList um) $ \gr -> do
-        let g = snd . head $ gr
-        sendPrivmsg chan [g <> " - " <> T.intercalate "," (map (pNick . fst) gr)]
+    forM_ (M.toList um) $ \(u, gs) ->
+        sendPrivmsg chan [pNick u <> " - {" <> T.intercalate ", " (S.toList gs) <> "}"]
 
 plugin :: Plugin AuthState
 plugin =
