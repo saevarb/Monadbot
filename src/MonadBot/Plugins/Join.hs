@@ -33,13 +33,13 @@ joinChannel channel = do
     m = length messages - 1
 
 joinHandler :: SimpleHandler
-joinHandler = handles "376" $ do
+joinHandler = onCmd "376" $ do
     srv <- getServer
     logMsg "Joining channels"
     mapM_ joinChannel (serverChannels srv)
 
 rejoin :: SimpleHandler
-rejoin = handleBang "!rejoin" $ do
+rejoin = onUserCmd "$rejoin" $ do
     (chan:_) <- getParams
     sendCommand "PART" [chan]
     joinChannel chan

@@ -12,13 +12,13 @@ plugin :: Plugin ()
 plugin = mkSimplePlugin "Brainfuck plugin" [brainfuckHandler]
 
 -- rejoin :: SimpleHandler
--- rejoin = handleBang "!rejoin" $ do
+-- rejoin = handleBang "$rejoin" $ do
 --     (chan:_) <- getParams
 --     sendCommand "PART" [chan]
 --     joinChannel chan
 
 brainfuckHandler :: SimpleHandler
-brainfuckHandler = handleBang "!brainfuck" $ do
+brainfuckHandler = onUserCmd "$brainfuck" $ do
     (chan:msg) <- getParams
     result <- liftIO . runProgram . T.unpack $ T.concat msg
     case result of

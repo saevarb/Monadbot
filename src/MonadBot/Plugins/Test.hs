@@ -12,7 +12,7 @@ import MonadBot.Plugin.Development
 
 
 nigger :: SimpleHandler
-nigger = handleBang "!nigger" $ do
+nigger = onUserCmd "$nigger" $ do
     pref <- getPrefix
     case pref of
         Just (UserPrefix p _ _) -> do
@@ -23,7 +23,7 @@ nigger = handleBang "!nigger" $ do
 
 serverCmd :: SimpleHandler
 serverCmd =
-    handleBang "!servers" $ do
+    onUserCmd "$servers" $ do
         srvs <- myServers <$> getGlobalEnv
         (chan:_) <- getParams
         sendCommand "PRIVMSG" [chan , "I am on the following servers and channels:"]
@@ -32,7 +32,7 @@ serverCmd =
 
 test :: SimpleHandler
 test =
-    handleBang "!test" $ do
+    onUserCmd "$test" $ do
         d <- liftIO $ randomRIO (3, 10)
         (chan:_) <- getParams
         sendPrivmsg chan ["Waiting ", T.pack $ show d,  " seconds."]
@@ -41,7 +41,7 @@ test =
 
 stateTest :: PluginM Int ()
 stateTest =
-    handleBang "!test" $ do
+    onUserCmd "$test" $ do
     whenOp $ do
         (chan:_) <- getParams
         i <- readState

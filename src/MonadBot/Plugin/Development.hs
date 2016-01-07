@@ -5,8 +5,9 @@ module MonadBot.Plugin.Development
     , getAuthEntries
     , modifyAuthEntries
     , sendPrivmsg
-    , handles
-    , handleBang
+    , onCmd
+    , onUserCmd
+    , onUserCmds
     , sendCommand
     , mkSimplePlugin
     , getServer
@@ -16,8 +17,8 @@ module MonadBot.Plugin.Development
     , onlyForChannels
     , whenOp
     , whenInGroup
-    , handlesAny
-    , handlesCTCP
+    , onCmds
+    , onCtcp
     , ctcpReply
     , readState
     , putState
@@ -59,31 +60,35 @@ getCommand = command `fmap` getMessage
 getPlugin :: PluginM a (InitializedPlugin a)
 getPlugin = asks handler
 
-handles :: Text -> PluginM a () -> PluginM a ()
-handles c f = do
+onCmd :: Text -> PluginM a () -> PluginM a ()
+onCmd c f = do
     cmd <- getCommand
     when (cmd == c) f
 
-handlesAny :: [Text] -> PluginM a () -> PluginM a ()
-handlesAny cmds f =
-    mapM_ (`handles` f) cmds
+onCmds :: [Text] -> PluginM a () -> PluginM a ()
+onCmds cmds f =
+    mapM_ (`onCmd` f) cmds
 
-handlesCTCP :: Text -> PluginM a () -> PluginM a ()
-handlesCTCP c f =
-    handlesAny ["PRIVMSG", "NOTICE"] $ do
+onCtcp :: Text -> PluginM a () -> PluginM a ()
+onCtcp c f =
+    onCmds ["PRIVMSG", "NOTICE"] $ do
         ps <- getParams
         guard (not . null $ ps)
         let (_:cmd:_) = ps
         when ("\x01" <> c <> "\x01" == T.tail cmd) f
 
 
-handleBang :: Text -> PluginM a () -> PluginM a ()
-handleBang bang f =
-    handles "PRIVMSG" $ do
+onUserCmd :: Text -> PluginM a () -> PluginM a ()
+onUserCmd bang f =
+    onCmd "PRIVMSG" $ do
         p <- getParams
         guard (not $ null p)
         let (_:first:_) = p
         when (T.tail first == bang) f
+
+onUserCmds :: [Text] -> PluginM a () -> PluginM a ()
+onUserCmds cmds f =
+    mapM_ (`onUserCmd` f) cmds
 
 onlyForServer :: Text -> PluginM a () -> PluginM a ()
 onlyForServer srv f = do
@@ -174,7 +179,7 @@ writeFileS f c =
 
 -- onlyForChannels :: [Text] -> PluginM a () -> PluginM a ()
 whenOp :: PluginM s () -> PluginM s ()
-whenOp f = handles "PRIVMSG" $ do
+whenOp f = onCmd "PRIVMSG" $ do
     (AuthEntries _ um) <- getAuthEntries
     (Just (pr@(UserPrefix n _ _))) <- getPrefix
     (chan:_) <- getParams
@@ -197,7 +202,7 @@ getRandomInsult victim = do
         ]
 
 whenInGroup :: Text -> PluginM s () -> PluginM s ()
-whenInGroup g f = handles "PRIVMSG" $ do
+whenInGroup g f = onCmd "PRIVMSG" $ do
     (AuthEntries _ um) <- getAuthEntries
     (Just (pref@(UserPrefix n _ _))) <- getPrefix
     (chan:_) <- getParams

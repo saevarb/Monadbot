@@ -6,7 +6,7 @@ module MonadBot.Plugins.Ping
 import MonadBot.Plugin.Development
 
 pingHandler :: SimpleHandler
-pingHandler = handles "PING" $ do
+pingHandler = onCmd "PING" $ do
     params <- getParams
     sendCommand "PONG" params
 

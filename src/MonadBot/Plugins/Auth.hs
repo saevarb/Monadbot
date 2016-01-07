@@ -15,7 +15,7 @@ data AuthState = AuthState (Maybe (Text, Text))
 
 addGroup :: PluginM a ()
 addGroup =
-    handleBang "!addgroup" $
+    onUserCmd "$addgroup" $
     whenInGroup "owner" $ do
     (chan:_:g:_) <- getParams
     void $ modifyAuthEntries $ \ae ->
@@ -24,7 +24,7 @@ addGroup =
 
 addUser :: PluginM AuthState ()
 addUser =
-    handleBang "!adduser" $
+    onUserCmd "$adduser" $
     whenInGroup "owner" $ do
     (AuthEntries gs _) <- getAuthEntries
     (chan:_:u:g:_) <- getParams
@@ -36,7 +36,7 @@ addUser =
 
 handleWhois :: PluginM AuthState ()
 handleWhois =
-    handles "311" $ do
+    onCmd "311" $ do
     (AuthState (Just (g, chan))) <- readState
     (_:n:u:h:_) <- getParams
     sendPrivmsg chan ["Added user " <> n <> "."]
@@ -47,7 +47,7 @@ handleWhois =
 
 listGroups :: PluginM a ()
 listGroups =
-    handleBang "!listgroups" $
+    onUserCmd "$listgroups" $
     whenInGroup "owner" $ do
     (AuthEntries gs _) <- getAuthEntries
     (chan:_) <- getParams
@@ -55,7 +55,7 @@ listGroups =
 
 listUsers :: PluginM a ()
 listUsers =
-    handleBang "!listusers" $
+    onUserCmd "$listusers" $
     whenInGroup "owner" $ do
     (AuthEntries _ um) <- getAuthEntries
     (chan:_) <- getParams
