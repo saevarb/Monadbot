@@ -3,3 +3,7 @@
 *.txt
 *.out
 .stack-work
+/GPATH
+/GRTAGS
+/GTAGS
+authinfo
