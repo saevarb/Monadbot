@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 name:                monadbot
-version:             0.1.0.0
+version:             0.1.0.0-alpha
 synopsis:            IRC bot in Haskell.
 -- description:
 homepage:            www.github.com/saevarb/monadbot
