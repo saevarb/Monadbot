@@ -22,10 +22,12 @@ executable monadbot
   build-depends:       async
                      , attoparsec
                      , base
+                     , bytestring
                      , conduit-combinators
                      , conduit-extra
                      , containers
                      , directory >= 1.2.2.0
+                     , http-client
                      , mmorph >= 1.0.4
                      , monad-control
                      , mtl
@@ -33,6 +35,8 @@ executable monadbot
                      , random >= 1.1
                      , stm
                      , text
+                     , time >= 1.5.0.1
+                     , transformers >= 0.4.2.0
                      , unix >= 2.7.1.0
   hs-source-dirs:      src
   default-language:    Haskell2010

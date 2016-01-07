@@ -28,15 +28,18 @@ sandbox pEnv f =
         t <- liftIO . async $ runPlugin pEnv f
         liftIO $ threadDelay delay
         res <- liftIO $ poll t
+        (chan:_) <- getParams
         case res of
             Nothing -> do
                 liftIO $ cancel t
-                (chan:_) <- getParams
-                logMsg $ "Plugin '" <> name <> "' exceeded time limit and was killed."
-                sendPrivmsg chan ["Plugin '" <> name <> "' exceeded time limit and was killed."]
+                let msg = "Plugin '" <> name <> "' exceeded time limit and was killed."
+                logMsg msg
+                sendPrivmsg chan [msg]
             Just res' ->
                 case res' of
-                    Left (SomeException e) ->
-                        logMsg $ "Plugin '" <> name <> "' failed with exception " <> (T.pack . show $ e)
+                    Left (SomeException e) -> do
+                        let msg = "Plugin '" <> name <> "' failed with exception: " <> (T.pack . show $ e)
+                        logMsg msg
+                        sendPrivmsg chan [msg]
                     Right _ -> return ()
                         -- logMsg $ "Plugin '" <> name <> "' ran successfully."
