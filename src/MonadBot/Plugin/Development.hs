@@ -166,13 +166,13 @@ swapState s = do
 modifyState :: (s -> s) -> PluginM s s
 modifyState f = readState >>= swapState . f
 
-readFileS :: FilePath -> Irc Text
+readFileS :: MonadIO m => FilePath -> m Text
 readFileS f =
     liftIO $ withFile f ReadMode $ \h -> do
         contents <- hGetContents h
         T.length contents `seq` return contents
 
-writeFileS :: FilePath -> Text -> Irc ()
+writeFileS :: MonadIO m => FilePath -> Text -> m ()
 writeFileS f c =
     liftIO $ withFile f WriteMode $ \h ->
         hPutStr h c
