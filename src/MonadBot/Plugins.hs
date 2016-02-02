@@ -9,6 +9,7 @@ import qualified MonadBot.Plugins.Test as Test
 import qualified MonadBot.Plugins.Version as Version
 import qualified MonadBot.Plugins.Auth as Auth
 import qualified MonadBot.Plugins.Brainfuck as Brainfuck
+import qualified MonadBot.Plugins.Tell as Tell
 
 allPlugins :: [Hide Plugin]
 allPlugins =
@@ -18,4 +19,5 @@ allPlugins =
     , Enabled Version.plugin
     , Enabled Auth.plugin
     , Enabled Brainfuck.plugin
+    , Enabled Tell.plugin
     ]
