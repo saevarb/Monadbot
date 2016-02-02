@@ -1,6 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE IncoherentInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving, RecordWildCards #-}
 {-# LANGUAGE ExistentialQuantification #-}
 module MonadBot.Types
@@ -71,7 +72,13 @@ instance HasServerEnv ServerEnvironment where
 class HasGlobalEnv s where
     getGlobalEnv :: (Monad m) => IrcT s m GlobalEnvironment
 
-instance (HasServerEnv a) => HasGlobalEnv a where
+instance HasGlobalEnv GlobalEnvironment where
+    getGlobalEnv = ask
+
+instance HasGlobalEnv ServerEnvironment where
+    getGlobalEnv = asks globalEnv
+
+instance HasServerEnv s => HasGlobalEnv s where
     getGlobalEnv = globalEnv <$> getServerEnv
 
 -- | The bot's config.
