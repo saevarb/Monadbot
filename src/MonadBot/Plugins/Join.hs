@@ -3,7 +3,7 @@ module MonadBot.Plugins.Join
     ( plugin
     ) where
 import System.Random
-
+import qualified Data.Text as T
 import MonadBot.Plugin.Development
 
 
@@ -14,6 +14,7 @@ messages =
     , "It's a good day to die."
     , "We are as one."
     , "Adun Toridas."
+    , "En Taro Adun."
     , "I have returned."
     , "Teleport successful."
     , "My life for Aiur!"
@@ -44,5 +45,15 @@ rejoin = onUserCmd "$rejoin" $ do
     sendCommand "PART" [chan]
     joinChannel chan
 
+joinCmd :: SimpleHandler
+joinCmd = onUserCmd "$join" $ do
+   (_:_:chan:_) <- getParams
+   joinChannel chan
+
+kickHandler :: SimpleHandler
+kickHandler = onCmd "KICK" $ do
+    (channel:_) <- getParams
+    joinChannel channel
+
 plugin :: Plugin ()
-plugin = mkSimplePlugin "Join handler" [joinHandler, rejoin]
+plugin = mkSimplePlugin "Join handler" [kickHandler, joinCmd, joinHandler, rejoin]
