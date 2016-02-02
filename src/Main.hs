@@ -1,19 +1,18 @@
 import MonadBot
 
 testConfig :: IrcConfig
-testConfig = cfg { timeout = 5 }
-  where
-    cfg = makeIrcConfig "monadbot-test"
-        "monadbot-test"
-        "monadbot-test"
-        [darchoods]
+testConfig =
+    defaultConfig
+    { nick = "MonadBot-test"
+    , servers = [darchoods]
+    }
 
 darchoods :: ServerInfo
 darchoods =
-    makeServerInfo "irc.darkscience.net"
-        6697
-        ["#bots"]
-        True
+    defaultServerInfo
+    { serverAddress = "irc.darkscience.net"
+    , serverChannels = ["#bots"]
+    }
 
 main :: IO ()
 main = runBot testConfig

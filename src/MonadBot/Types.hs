@@ -14,9 +14,9 @@ module MonadBot.Types
     , ServerM
     , SimpleHandler
     , IrcConfig (..)
-    , makeIrcConfig
+    , defaultConfig
     , ServerInfo (..)
-    , makeServerInfo
+    , defaultServerInfo
     , AuthInfo (..)
     , AuthEntries (..)
     , addOp
@@ -92,9 +92,16 @@ data IrcConfig =
     , authInfoDir :: Text
     } deriving (Eq, Read, Show)
 
-makeIrcConfig :: Text -> Text -> Text -> [ServerInfo] -> IrcConfig
-makeIrcConfig n u r srvs =
-    IrcConfig n u r srvs 30 "authinfo"
+defaultConfig :: IrcConfig
+defaultConfig =
+    IrcConfig
+    { nick        = "MonadBot"
+    , user        = "MonadBot"
+    , real        = "MonadBot"
+    , servers     = []
+    , timeout     = 30
+    , authInfoDir = "authinfo"
+    }
 
 -- | Contains information needed to connect to a server.
 data ServerInfo
@@ -108,9 +115,16 @@ data ServerInfo
     , authEntries    :: AuthEntries
     } deriving (Eq, Read, Show)
 
-makeServerInfo :: Text -> Int -> [Text] -> Bool -> ServerInfo
-makeServerInfo addr port chans tls =
-    ServerInfo port addr Nothing chans tls Nothing emptyAuth
+defaultServerInfo =
+    ServerInfo
+    { serverPort     = 6697
+    , serverAddress  = ""
+    , serverPass     = Nothing
+    , serverChannels = []
+    , useTLS         = True
+    , nickServ       = Nothing
+    , authEntries    = emptyAuth
+    }
 
 -- | The global environment. This contains all resources that are shared between servers.
 -- The data that can be modified is stored in 'TMVars' such that any modifications will

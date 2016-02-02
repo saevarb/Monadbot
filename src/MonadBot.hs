@@ -2,9 +2,9 @@
 module MonadBot
     ( runBot
     , IrcConfig (..)
-    , makeIrcConfig
+    , defaultConfig
     , ServerInfo (..)
-    , makeServerInfo
+    , defaultServerInfo
     , addOp
     ) where
 
