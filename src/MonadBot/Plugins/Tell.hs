@@ -30,10 +30,12 @@ tellTrigger = onCmd "PRIVMSG" $ do
     (channel:_) <- getParams
     (TellState tm) <- readState
     case M.lookup (channel, sender) tm of
-        Just (from, msg) ->
-            sendPrivmsg channel ["Message from", from <> ":", msg]
+        Just (from, msg) -> do
+            sendPrivmsg channel [sender <> ", you have a message from", from <> ":", msg]
+            modifyState $ \s ->
+                s { messages = M.delete (channel, sender) (messages s) }
+            return ()
         Nothing -> return ()
-
 plugin :: Plugin TellState
 plugin = Plugin "Tell functionality"
          [tellCmd, tellTrigger]
