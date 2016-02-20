@@ -13,11 +13,12 @@ import Data.Yaml
 
 data IrcConfig =
     IrcConfig
-    { nick        :: Text
-    , user        :: Text
-    , real        :: Text
-    , servers     :: [ServerInfo]
-    , timeout     :: Int
+    { nick    :: Text
+    , user    :: Text
+    , real    :: Text
+    , servers :: [ServerInfo]
+    , timeout :: Int
+    , dbName  :: Text
     } deriving (Eq, Read, Show)
 
 data ServerInfo

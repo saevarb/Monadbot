@@ -1,4 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 module MonadBot.Plugin.Development
     ( getPluginName
     , getParams
@@ -22,12 +23,32 @@ module MonadBot.Plugin.Development
     , swapState
     , readFileS
     , writeFileS
+    -- Database stuff
+    , runDb
+    , initializeDb
+    , mkPersist
+    , mkMigrate
+    , sqlSettings
+    , share
+    , persistLowerCase
+    , DB.runMigration
+    , DB.Entity (..)
     , Prefix (..)
     , MonadBot.Config.IrcConfig (..)
     , MonadBot.Config.ServerInfo (..)
     , module MonadBot.Types
     ) where
-
+import qualified Database.Persist as DB
+import qualified Database.Persist.Sql as DB
+import qualified Database.Persist.Sqlite as DB
+import           Database.Persist.Quasi ()
+import           Database.Persist.TH
+    ( share
+    , persistLowerCase
+    , mkPersist
+    , mkMigrate
+    , sqlSettings
+    )
 import           Data.List
 import qualified Data.Text as T
 import           Data.Text.IO
@@ -151,6 +172,19 @@ readState = do
     (PluginState v) <- asks state
     liftIO . atomically $ readTMVar v
     -- return s
+
+getDbName :: (HasGlobalEnv s, MonadIO m) => IrcT s m Text
+getDbName = geDbName <$> getGlobalEnv
+
+-- runDb :: (HasGlobalEnv s, MonadIO m) => DB.SqlPersistT _ b -> IrcT s m b
+runDb query = do
+    dbname <- getDbName
+    liftIO $ DB.runSqlite dbname query
+
+initializeDb :: DB.SqlPersistT _ b -> Irc b
+initializeDb query = do
+    dbname <- getDbName
+    liftIO $ DB.runSqlite dbname query
 
 putState :: s -> PluginM s ()
 putState s = do

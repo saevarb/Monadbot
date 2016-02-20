@@ -75,6 +75,9 @@ library
                      , transformers
                      , unix
                      , yaml
+                     , persistent
+                     , persistent-sqlite
+                     , persistent-template
 
 executable monadbot
   hs-source-dirs:      app

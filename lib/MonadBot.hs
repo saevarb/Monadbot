@@ -102,7 +102,13 @@ makeGlobalEnv cfg = do
     -- Create log queue which is shared by all servers
     tlife <- newTMVarIO $ timeout cfg * 1000000
     lgr <- newTQueueIO
-    return $ GlobalEnvironment (nick cfg) (servers cfg) lgr tlife
+    return $ GlobalEnvironment
+               { myNick     = nick cfg
+               , myServers  = servers cfg
+               , logger     = lgr
+               , threadLife = tlife
+               , geDbName   = dbName cfg
+               }
 
 makeServerEnv :: GlobalEnvironment -> ServerInfo -> IO ServerEnvironment
 makeServerEnv gEnv srv = do

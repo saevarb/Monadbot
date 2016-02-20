@@ -58,7 +58,7 @@ import           MonadBot.Message.Encode
 import MonadBot.Config
 
 class HasServerEnv s where
-    getServerEnv :: (Monad m) => IrcT s m ServerEnvironment
+    getServerEnv :: (Monad m, HasServerEnv s) => IrcT s m ServerEnvironment
 
 instance HasServerEnv (PluginEnvironment a) where
     getServerEnv = asks serverEnv
@@ -67,7 +67,7 @@ instance HasServerEnv ServerEnvironment where
     getServerEnv = ask
 
 class HasGlobalEnv s where
-    getGlobalEnv :: (Monad m) => IrcT s m GlobalEnvironment
+    getGlobalEnv :: (Monad m, HasGlobalEnv s) => IrcT s m GlobalEnvironment
 
 instance HasGlobalEnv GlobalEnvironment where
     getGlobalEnv = ask
@@ -88,6 +88,7 @@ data GlobalEnvironment
     , logger      :: Logger
     -- , threadStore :: TMVar ThreadStore
     , threadLife  :: TMVar Int
+    , geDbName    :: Text
     }
 
 -- | A server environment. Contains state that is accessible in the context of a specific
@@ -193,7 +194,7 @@ initializePlugin :: GlobalEnvironment -> Hide Plugin -> IO (Hide InitializedPlug
 initializePlugin env (Enabled (Plugin {..})) = do
     x <- runIrc constructor env
     s <- mkPluginState x
-    return $ Enabled $ InitializedPlugin pluginName s handlers destructor
+    return . Enabled $ InitializedPlugin pluginName s handlers destructor
 
 runPlugin :: MonadIO m => PluginEnvironment s -> PluginM s a -> m a
 runPlugin pEnv h =  liftIO $ runReaderT (unIrc h) pEnv
