@@ -16,8 +16,36 @@ build-type:          Simple
 -- extra-source-files:
 cabal-version:       >=1.10
 
-executable monadbot
-  main-is:             Main.hs
+
+library
+  hs-source-dirs:      lib
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  exposed-modules:     MonadBot
+  other-modules:       MonadBot.Config
+                     , MonadBot.Message
+                     , MonadBot.DB
+                     , MonadBot.Message.Decode
+                     , MonadBot.Message.Decode.Parser
+                     , MonadBot.Message.Encode
+                     , MonadBot.Plugin.Development
+                     , MonadBot.Plugins.Join
+                     , MonadBot.Plugins.Brainfunk
+                     , MonadBot.Plugins.Brainfuck
+                     , MonadBot.Plugins.Ping
+                     , MonadBot.Plugins.ListZipper
+                     , MonadBot.Plugins.Version
+                     , MonadBot.Plugins.Auth
+                     , MonadBot.Plugins.Tell
+                     , MonadBot.Plugins.Test
+                     , MonadBot.Sandbox
+                     , MonadBot.Utility
+                     , MonadBot.Logging
+                     , MonadBot.Plugins
+                     , MonadBot.ThreadManager
+                     , MonadBot.Types
+                     , Paths_monadbot
+
+  default-language:    Haskell2010
   default-extensions:  OverloadedStrings
   build-depends:       aeson >= 0.9.0.1
                      , async
@@ -47,5 +75,20 @@ executable monadbot
                      , transformers
                      , unix
                      , yaml
-  hs-source-dirs:      src
+
+executable monadbot
+  hs-source-dirs:      app
+  main-is:             Main.hs
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
+  default-language:    Haskell2010
+  build-depends:       base
+                     , monadbot
+
+test-suite monadbot-test
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  main-is:             Spec.hs
+  build-depends:       base
+                     , monadbot
+  ghc-options:         -threaded -rtsopts -with-rtsopts=-N
   default-language:    Haskell2010
