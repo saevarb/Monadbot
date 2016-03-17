@@ -6,15 +6,14 @@ timeout: 30
 servers:
 - serverPort: 6667
   # This is decoded to Maybe (Text, Text)
+  # Maybe can be null or be omitted
   nickServ:
   - username
   - password
   serverChannels: ['#example']
   useTLS: true
   serverAddress: 'irc.example.com'
-servers:
 - serverPort: 6697
-  # Maybe can be null or be omitted
   nickServ: null
   serverChannels: ['#freenode']
   useTLS: true
