@@ -11,53 +11,5 @@ import           System.Random
 import MonadBot.Plugin.Development
 
 
-nigger :: SimpleHandler
-nigger = onUserCmd "$nigger" $ do
-    pref <- getPrefix
-    case pref of
-        Just (UserPrefix p _ _) -> do
-            (chan:_) <- getParams
-            sendCommand "PRIVMSG" [chan, p <> ": you are a nigger."]
-        _ -> return ()
-
-
-serverCmd :: SimpleHandler
-serverCmd =
-    onUserCmd "$servers" $ do
-        srvs <- myServers <$> getGlobalEnv
-        (chan:_) <- getParams
-        sendCommand "PRIVMSG" [chan , "I am on the following servers and channels:"]
-        forM_ srvs $ \srv ->
-            sendCommand "PRIVMSG" [chan, serverAddress srv <> ": " <> T.intercalate ", " (serverChannels srv)]
-
-test :: SimpleHandler
-test =
-    onUserCmd "$test" $ do
-        d <- liftIO $ randomRIO (3, 10)
-        (chan:_) <- getParams
-        sendPrivmsg chan ["Waiting ", T.pack $ show d,  " seconds."]
-        liftIO $ threadDelay $ d * 1000000
-        sendPrivmsg chan ["Done."]
-
-stateTest :: PluginM Int ()
-stateTest =
-    onUserCmd "$test" $ do
-    whenOp $ do
-        (chan:_) <- getParams
-        i <- readState
-        sendPrivmsg chan ["Value before incrementing: ", T.pack $ show i]
-        modifyState (+1)
-        return ()
-
-plugin :: Plugin Int
--- plugin = mkSimplePlugin "Test handler" [test, nigger, serverCmd]
-plugin = Plugin "Test handler" [stateTest] c d
-  where
-    -- c :: Irc Int
-    c = do
-      -- logMsg "Running constructor"
-      return 7
-    -- d :: Int -> Irc ()
-    d s = do
-      -- logMsg "Running destructor"
-      liftIO $ writeFile "test_handler.dat" (show s)
+plugin :: Plugin ()
+plugin = mkSimplePlugin "Test handler" []
