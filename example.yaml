@@ -1,0 +1,21 @@
+nick: MonadBot-test
+user: MonadBot-test
+real: MonadBot-test
+# If a plugin runs for more than 30 seconds, assume it has hanged and kill it.
+timeout: 30
+servers:
+- serverPort: 6667
+  # This is decoded to Maybe (Text, Text)
+  nickServ:
+  - username
+  - password
+  serverChannels: ['#example']
+  useTLS: true
+  serverAddress: 'irc.example.com'
+servers:
+- serverPort: 6697
+  # Maybe can be null or be omitted
+  nickServ: null
+  serverChannels: ['#freenode']
+  useTLS: true
+  serverAddress: 'irc.freenode.net'
