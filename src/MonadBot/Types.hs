@@ -13,13 +13,9 @@ module MonadBot.Types
     , PluginM
     , ServerM
     , SimpleHandler
-    , IrcConfig (..)
-    , defaultConfig
-    , ServerInfo (..)
-    , defaultServerInfo
     , AuthInfo (..)
     , AuthEntries (..)
-    , addOp
+    -- , addOp
     , emptyAuth
     , GlobalEnvironment (..)
     , ServerEnvironment (..)
@@ -59,6 +55,7 @@ import           MonadBot.Logging
 
 import           MonadBot.Message
 import           MonadBot.Message.Encode
+import MonadBot.Config
 
 class HasServerEnv s where
     getServerEnv :: (Monad m) => IrcT s m ServerEnvironment
@@ -81,51 +78,6 @@ instance HasGlobalEnv ServerEnvironment where
 instance HasServerEnv s => HasGlobalEnv s where
     getGlobalEnv = globalEnv <$> getServerEnv
 
--- | The bot's config.
-data IrcConfig =
-    IrcConfig
-    { nick        :: Text
-    , user        :: Text
-    , real        :: Text
-    , servers     :: [ServerInfo]
-    , timeout     :: Int
-    , authInfoDir :: Text
-    } deriving (Eq, Read, Show)
-
-defaultConfig :: IrcConfig
-defaultConfig =
-    IrcConfig
-    { nick        = "MonadBot"
-    , user        = "MonadBot"
-    , real        = "MonadBot"
-    , servers     = []
-    , timeout     = 30
-    , authInfoDir = "authinfo"
-    }
-
--- | Contains information needed to connect to a server.
-data ServerInfo
-    = ServerInfo
-    { serverPort     :: Int
-    , serverAddress  :: Text
-    , serverPass     :: Maybe Text
-    , serverChannels :: [Text]
-    , useTLS         :: Bool
-    , nickServ       :: Maybe (Text, Text)
-    , authEntries    :: AuthEntries
-    } deriving (Eq, Read, Show)
-
-defaultServerInfo =
-    ServerInfo
-    { serverPort     = 6697
-    , serverAddress  = ""
-    , serverPass     = Nothing
-    , serverChannels = []
-    , useTLS         = True
-    , nickServ       = Nothing
-    , authEntries    = emptyAuth
-    }
-
 -- | The global environment. This contains all resources that are shared between servers.
 -- The data that can be modified is stored in 'TMVars' such that any modifications will
 -- be visible everywhere.
@@ -145,7 +97,6 @@ data ServerEnvironment
     { globalEnv :: GlobalEnvironment
     , server    :: ServerInfo
     , writer    :: Writer
-    , authInfo  :: AuthInfo
     }
 
 -- | A plugin environment. Contains state that is accessible in the context of a specific
@@ -202,13 +153,13 @@ emptyAuth :: AuthEntries
 emptyAuth = AuthEntries S.empty M.empty
 
 
-addOp :: Text -> Text -> Text -> Group -> ServerInfo -> ServerInfo
-addOp n u h g si =
-    let (AuthEntries gs um) = authEntries si
-        new = AuthEntries
-              (S.insert g gs)
-              (M.insertWith S.union (UserPrefix n (Just u) (Just h)) (S.singleton g) um)
-    in si { authEntries = new }
+-- addOp :: Text -> Text -> Text -> Group -> ServerInfo -> ServerInfo
+-- addOp n u h g si =
+--     let (AuthEntries gs um) = authEntries si
+--         new = AuthEntries
+--               (S.insert g gs)
+--               (M.insertWith S.union (UserPrefix n (Just u) (Just h)) (S.singleton g) um)
+--     in si { authEntries = new }
 
 data Hide f
     = forall a. Enabled (f a)

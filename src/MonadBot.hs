@@ -1,11 +1,7 @@
 {-# LANGUAGE RankNTypes #-}
 module MonadBot
     ( runBot
-    , IrcConfig (..)
-    , defaultConfig
-    , ServerInfo (..)
-    , defaultServerInfo
-    , addOp
+    , readConfig
     ) where
 
 import           Control.Concurrent (forkIO, threadDelay, killThread, ThreadId)
@@ -38,6 +34,7 @@ import           MonadBot.Logging
 import           MonadBot.Plugins
 import           MonadBot.Sandbox (sandbox)
 import           MonadBot.Utility (ppMessage)
+import           MonadBot.Config
 
 handleMessage :: (HasServerEnv s, MonadIO m)
               => [Hide InitializedPlugin]
@@ -107,20 +104,19 @@ makeGlobalEnv cfg = do
     lgr <- newTQueueIO
     return $ GlobalEnvironment (nick cfg) (servers cfg) lgr tlife
 
-makeServerEnv :: Text -> GlobalEnvironment -> ServerInfo -> IO ServerEnvironment
-makeServerEnv filename gEnv srv = do
+makeServerEnv :: GlobalEnvironment -> ServerInfo -> IO ServerEnvironment
+makeServerEnv gEnv srv = do
     -- Writer specific to server
     w <- newTQueueIO
-    ai <- AuthInfo <$> (readAuthEntries >>= newTMVarIO)
-    return $ ServerEnvironment gEnv srv w ai
+    -- ai <- AuthInfo <$> (readAuthEntries >>= newTMVarIO)
+    return $ ServerEnvironment gEnv srv w
   where
-    readAuthEntries :: IO AuthEntries
+    -- readAuthEntries :: IO AuthEntries
     -- readAuthEntries = do
-    readAuthEntries = do
-        fileOk <- doesFileExist $ T.unpack filename
-        if fileOk
-        then read . T.unpack <$> TIO.readFile (T.unpack filename)
-        else return (authEntries srv)
+    --     fileOk <- doesFileExist $ T.unpack filename
+    --     if fileOk
+    --     then read . T.unpack <$> TIO.readFile (T.unpack filename)
+    --     else return (authEntries srv)
 
 connectToServer :: ServerEnvironment -> IO ThreadId
 connectToServer srvEnv =
@@ -144,12 +140,7 @@ runBot cfg = do
     putStrLn "Starting logger.."
     forkIO $ logWorker (logger gEnv)
 
-    dirOk <- doesDirectoryExist (T.unpack $ authInfoDir cfg)
-    unless dirOk $
-        createDirectory (T.unpack $ authInfoDir cfg)
-
-
-    srvEnvs <- mapM (\s -> makeServerEnv (mkAuthFile s) gEnv s) (servers cfg)
+    srvEnvs <- mapM (\s -> makeServerEnv gEnv s) (servers cfg)
     threads <- forM srvEnvs $ \se -> do
         printf "Connecting to %s..\n" (T.unpack $ serverAddress . server $ se)
         connectToServer se
@@ -159,12 +150,6 @@ runBot cfg = do
     getChar
     putStrLn "Killing all threads"
     mapM_ killThread threads
-    putStrLn "Saving auth info.."
-    forM_ srvEnvs $ \se -> do
-        let (AuthInfo v) = authInfo se
-        ae <- liftIO . atomically $ readTMVar v
-        TIO.putStrLn $ "\t" <> serverAddress (server se)
-        TIO.writeFile (T.unpack . mkAuthFile $ server se) $ T.pack $ show ae
     putStrLn "Goodbye."
   where
     sigIntHandler threads =
@@ -172,9 +157,6 @@ runBot cfg = do
             putStrLn "Killing all threads" >>
             mapM_ killThread threads >>
             exitSuccess
-    mkAuthFile s =
-        (T.reverse . T.dropWhile (== '/') . T.reverse $ authInfoDir cfg)
-        <> "/" <> serverAddress s <> ".auth"
 
 callDestructors :: [Hide InitializedPlugin] -> IrcT GlobalEnvironment IO ()
 callDestructors plugins =

@@ -17,7 +17,7 @@ allPlugins =
     , Enabled Join.plugin
     , Enabled Test.plugin
     , Enabled Version.plugin
-    , Enabled Auth.plugin
+    -- , Enabled Auth.plugin
     , Enabled Brainfuck.plugin
     , Enabled Tell.plugin
     ]

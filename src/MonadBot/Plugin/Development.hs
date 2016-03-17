@@ -2,8 +2,6 @@
 module MonadBot.Plugin.Development
     ( getPluginName
     , getParams
-    , getAuthEntries
-    , modifyAuthEntries
     , sendPrivmsg
     , onCmd
     , onUserCmd
@@ -15,8 +13,6 @@ module MonadBot.Plugin.Development
     , onlyForServer
     , onlyForChannel
     , onlyForChannels
-    , whenOp
-    , whenInGroup
     , onCmds
     , onCtcp
     , ctcpReply
@@ -27,6 +23,8 @@ module MonadBot.Plugin.Development
     , readFileS
     , writeFileS
     , Prefix (..)
+    , MonadBot.Config.IrcConfig (..)
+    , MonadBot.Config.ServerInfo (..)
     , module MonadBot.Types
     ) where
 
@@ -38,8 +36,9 @@ import qualified Data.Set as S
 import System.Random
 import           System.IO (withFile, IOMode (..))
 
-import           MonadBot.Types
-import           MonadBot.Message (Message (..), Prefix (..))
+import MonadBot.Types
+import MonadBot.Config
+import MonadBot.Message (Message (..), Prefix (..))
 
 mkSimplePlugin :: Text -> [SimpleHandler] -> Plugin ()
 mkSimplePlugin name hs =
@@ -108,16 +107,16 @@ onlyForChannels channels f = do
 getServer :: PluginM a ServerInfo
 getServer = server `fmap` getServerEnv
 
-getAuthEntries :: PluginM s AuthEntries
-getAuthEntries = do
-    (AuthInfo v) <- authInfo <$> getServerEnv
-    liftIO . atomically $ readTMVar v
+-- getAuthEntries :: PluginM s AuthEntries
+-- getAuthEntries = do
+--     (AuthInfo v) <- authInfo <$> getServerEnv
+--     liftIO . atomically $ readTMVar v
 
-modifyAuthEntries :: (AuthEntries -> AuthEntries) -> PluginM s AuthEntries
-modifyAuthEntries f = do
-    (AuthInfo v) <- authInfo <$> getServerEnv
-    ae <- getAuthEntries
-    liftIO . atomically $ swapTMVar v $ f ae
+-- modifyAuthEntries :: (AuthEntries -> AuthEntries) -> PluginM s AuthEntries
+-- modifyAuthEntries f = do
+--     (AuthInfo v) <- authInfo <$> getServerEnv
+--     ae <- getAuthEntries
+--     liftIO . atomically $ swapTMVar v $ f ae
 
 
 sendCommand :: (HasServerEnv s, MonadIO m) => Text -> [Text] -> IrcT s m ()
@@ -177,17 +176,16 @@ writeFileS f c =
     liftIO $ withFile f WriteMode $ \h ->
         hPutStr h c
 
--- onlyForChannels :: [Text] -> PluginM a () -> PluginM a ()
-whenOp :: PluginM s () -> PluginM s ()
-whenOp f = onCmd "PRIVMSG" $ do
-    (AuthEntries _ um) <- getAuthEntries
-    (Just (pr@(UserPrefix n _ _))) <- getPrefix
-    (chan:_) <- getParams
-    if M.member pr um
-    then f
-    else do
-      insult <- getRandomInsult n
-      sendPrivmsg chan [insult]
+-- whenOp :: PluginM s () -> PluginM s ()
+-- whenOp f = onCmd "PRIVMSG" $ do
+--     (AuthEntries _ um) <- getAuthEntries
+--     (Just (pr@(UserPrefix n _ _))) <- getPrefix
+--     (chan:_) <- getParams
+--     if M.member pr um
+--     then f
+--     else do
+--       insult <- getRandomInsult n
+--       sendPrivmsg chan [insult]
 
 getRandomInsult :: MonadIO m => Text -> m Text
 getRandomInsult victim = do
@@ -201,18 +199,18 @@ getRandomInsult victim = do
         , (<> ": Nope.")
         ]
 
-whenInGroup :: Text -> PluginM s () -> PluginM s ()
-whenInGroup g f = onCmd "PRIVMSG" $ do
-    (AuthEntries _ um) <- getAuthEntries
-    (Just (pref@(UserPrefix n _ _))) <- getPrefix
-    (chan:_) <- getParams
-    case M.lookup pref um of
-        (Just g') ->
-            if g `S.member` g' then
-              f
-            else do
-              insult <- getRandomInsult n
-              sendPrivmsg chan [insult]
-        Nothing -> do
-            insult <- getRandomInsult n
-            sendPrivmsg chan [insult]
+-- whenInGroup :: Text -> PluginM s () -> PluginM s ()
+-- whenInGroup g f = onCmd "PRIVMSG" $ do
+--     (AuthEntries _ um) <- getAuthEntries
+--     (Just (pref@(UserPrefix n _ _))) <- getPrefix
+--     (chan:_) <- getParams
+--     case M.lookup pref um of
+--         (Just g') ->
+--             if g `S.member` g' then
+--               f
+--             else do
+--               insult <- getRandomInsult n
+--               sendPrivmsg chan [insult]
+--         Nothing -> do
+--             insult <- getRandomInsult n
+--             sendPrivmsg chan [insult]
