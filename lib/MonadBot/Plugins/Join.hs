@@ -52,8 +52,9 @@ joinCmd = onUserCmd "$join" $ do
 
 kickHandler :: SimpleHandler
 kickHandler = onCmd "KICK" $ do
-    (channel:_) <- getParams
-    joinChannel channel
+    (channel:target:_) <- getParams
+    me <- getMyNick
+    when (target == me) $ joinChannel channel
 
 plugin :: Plugin ()
 plugin = mkSimplePlugin "Join handler" [kickHandler, joinCmd, joinHandler, rejoin]

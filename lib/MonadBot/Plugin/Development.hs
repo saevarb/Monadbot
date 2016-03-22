@@ -11,6 +11,7 @@ module MonadBot.Plugin.Development
     , mkSimplePlugin
     , getServer
     , getPrefix
+    , getMyNick
     , onlyForServer
     , onlyForChannel
     , onlyForChannels
@@ -232,6 +233,9 @@ getRandomInsult victim = do
         , const "Access denied."
         , (<> ": Nope.")
         ]
+
+getMyNick :: PluginM a Text
+getMyNick = myNick <$> getGlobalEnv
 
 -- whenInGroup :: Text -> PluginM s () -> PluginM s ()
 -- whenInGroup g f = onCmd "PRIVMSG" $ do
