@@ -22,6 +22,7 @@ import           System.Exit
 import           System.Posix.Signals
 
 import           Conduit
+import           Data.Conduit.Text (decodeUtf8Lenient)
 import           Data.Conduit.Network
 import           Data.Conduit.Network.TLS
 import           Text.Printf
@@ -71,7 +72,7 @@ botApp srvEnv app = do
             lift authenticate
 
             -- Decode bytestrings to Text
-            appSource app =$= decodeUtf8C
+            appSource app =$= decodeUtf8Lenient
                 -- Chunk into lines
                 =$= linesUnboundedC
                 -- Remove trailing \r
